@@ -26,7 +26,7 @@ import traceback
 
 current_dir = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(os.path.join(current_dir, "../.."))
-from bbc1.core.bbc_error import *
+from bbc_simple.core.bbc_error import *
 
 directory, filename = os.path.split(os.path.realpath(__file__))
 from ctypes import *
@@ -35,9 +35,6 @@ if os.name == "nt":
     libbbcsig = CDLL("%s/libbbcsig.dll" % directory)
 else:
     libbbcsig = CDLL("%s/libbbcsig.so" % directory)
-
-
-domain_global_0 = binascii.a2b_hex("0000000000000000000000000000000000000000000000000000000000000000")
 
 error_code = -1
 error_text = ""
