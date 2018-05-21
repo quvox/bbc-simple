@@ -115,7 +115,7 @@ class BBcCoreService:
         """Start TCP(v4 or v6) server"""
         pool = Pool(POOL_SIZE)
         if self.ipv6:
-            server = StreamServer(("::", port), self._handler, spawn=pool)
+            server = StreamServer(("::", pFort), self._handler, spawn=pool)
         else:
             server = StreamServer(("0.0.0.0", port), self._handler, spawn=pool)
         try:
@@ -144,7 +144,6 @@ class BBcCoreService:
 
     def _handler(self, socket, address):
         """Message wait loop for a client"""
-        # self.logger.debug("New connection")
         self.stats.update_stats_increment("client", "total_num", 1)
         user_info = None
         msg_parser = message_key_types.Message()

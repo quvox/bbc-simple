@@ -4,7 +4,6 @@ Copyright (c) 2018 quvox.net
 
 This code is based on that in bbc-1 (https://github.com/beyond-blockchain/bbc1.git)
 """
-import subprocess
 import mysql.connector
 import traceback
 
@@ -386,16 +385,22 @@ class MysqlAdaptor(DbAdaptor):
 
     def open_db(self, rootpass):
         """Open the DB"""
+        db = None
+        db_cur = None
         try:
-            subprocess.call(
-                ["mysql", "-u", "root", "-p%s" % rootpass, "--host", self.db_addr, "--port", str(self.db_port),
-                 "-e", "create database %s;" % self.db_name])
+            db = mysql.connector.connect(
+                host=self.db_addr, port=self.db_port,
+                user="root", password=rootpass, charset='utf8'
+            )
+            db_cur = db.cursor(buffered=True)
+            db_cur.execute("create database %s" % self.db_name)
             grant_sql = "GRANT ALL ON %s.* TO '%s'@'%%';" % (self.db_name, self.db_user)
-            subprocess.call(
-                ["mysql", "-u", "root", "-p%s" % rootpass, "--host", self.db_addr, "--port", str(self.db_port),
-                 "-e", grant_sql])
+            db_cur.execute(grant_sql)
         except Exception as e:
             self.handler.logger.error(e)
+        finally:
+            db_cur.close()
+            db.close()
 
         self.db = mysql.connector.connect(
             host=self.db_addr,

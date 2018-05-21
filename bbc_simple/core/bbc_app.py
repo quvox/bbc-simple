@@ -2,7 +2,7 @@
 """
 Copyright (c) 2017 quvox.net
 
-This code is based on that in bbc-1 (https://github.com/beyond-blockchain/bbc_simple)
+This code is based on that in bbc-1 (https://github.com/beyond-blockchain/bbc1.git)
 """
 import gevent
 from gevent import monkey
@@ -205,74 +205,6 @@ class BBcAppClient:
         dat = self._make_message_structure(MsgType.REQUEST_GET_NODEID)
         return self._send_msg(dat)
 
-    def get_domain_neighborlist(self, domain_id):
-        """Get peer list of the domain from the core node
-
-        This method should be used by a system administrator.
-
-        Args:
-            domain_id (bytes): domain_id of the neighbor list
-        Returns:
-            bytes: query_id
-        """
-        dat = self._make_message_structure(MsgType.REQUEST_GET_NEIGHBORLIST)
-        dat[KeyType.domain_id] = domain_id
-        admin_info = {
-            KeyType.random: bbclib.get_random_value(32)
-        }
-        self.include_admin_info(dat, admin_info, None)
-        return self._send_msg(dat)
-
-    def set_domain_static_node(self, domain_id, node_id, ipv4, ipv6, port):
-        """Set static node to the core node
-
-        IPv6 is used for socket communication if both IPv4 and IPv6 is specified.
-        This method should be used by a system administrator.
-
-        Args:
-            domain_id (bytes): target domain_id to set static neighbor entry
-            node_id (bytes): node_id to register
-            ipv4 (str): IPv4 address of the node
-            ipv6 (str): IPv6 address of the node
-            port (int): Port number to wait messages (UDP/TCP)
-        Returns:
-            bytes: query_id
-        """
-        dat = self._make_message_structure(MsgType.REQUEST_SET_STATIC_NODE)
-        dat[KeyType.domain_id] = domain_id
-        admin_info = {
-            KeyType.node_info: [node_id, ipv4, ipv6, port]
-        }
-        self.include_admin_info(dat, admin_info, None)
-        return self._send_msg(dat)
-
-    def send_domain_ping(self, domain_id, ipv4=None, ipv6=None, port=DEFAULT_P2P_PORT):
-        """ Send domain ping to notify the existence of the node
-
-        This method should be used by a system administrator.
-
-        Args:
-            domain_id (bytes): target domain_id to send ping
-            ipv4 (str): IPv4 address of the node
-            ipv6 (str): IPv6 address of the node
-            port (int): Port number to wait messages UDP
-        Returns:
-            bytes: query_id
-        """
-        if ipv4 is None and ipv6 is None:
-            return
-        dat = self._make_message_structure(MsgType.DOMAIN_PING)
-        dat[KeyType.domain_id] = domain_id
-        admin_info = dict()
-        if ipv4 is not None and ipv4 != "0.0.0.0":
-            admin_info[KeyType.ipv4_address] = ipv4
-        if ipv6 is not None and ipv6 != "::":
-            admin_info[KeyType.ipv6_address] = ipv6
-        admin_info[KeyType.port_number] = port
-        admin_info[KeyType.static_entry] = True
-        self.include_admin_info(dat, admin_info, None)
-        return self._send_msg(dat)
-
     def get_bbc_config(self):
         """Get config file of bbc_core
 
@@ -390,13 +322,12 @@ class BBcAppClient:
         dat[KeyType.asset_group_id] = asset_group_id
         return self._send_msg(dat)
 
-    def gather_signatures(self, txobj, reference_obj=None, asset_files=None, destinations=None, anycast=False):
+    def gather_signatures(self, txobj, reference_obj=None, destinations=None, anycast=False):
         """Request to gather signatures from the specified user_ids
 
         Args:
             txobj (BBcTransaction):
             reference_obj (BBcReference): BBcReference object that includes the information about destinations
-            asset_files (dict): mapping from asset_id to its file content
             destinations (list): list of destination user_ids
             anycast (bool): True if this message is for anycasting
         Returns:
@@ -417,8 +348,6 @@ class BBcAppClient:
                 dat[KeyType.transactions] = referred_transactions
         elif destinations is not None:
             dat[KeyType.destination_user_ids] = destinations
-        if isinstance(asset_files, dict):
-            dat[KeyType.all_asset_files] = asset_files
         return self._send_msg(dat)
 
     def sendback_signature(self, dest_user_id=None, transaction_id=None, ref_index=-1, signature=None, query_id=None):
@@ -483,20 +412,6 @@ class BBcAppClient:
             tx_obj.digest()
         dat = self._make_message_structure(MsgType.REQUEST_INSERT)
         dat[KeyType.transaction_data] = tx_obj.serialize()
-        ast = dict()
-        for evt in tx_obj.events:
-            if evt.asset is None:
-                continue
-            asset_digest, content = evt.asset.get_asset_file()
-            if content is not None:
-                ast[evt.asset.asset_id] = content
-        for rtn in tx_obj.relations:
-            if rtn.asset is None:
-                continue
-            asset_digest, content = rtn.asset.get_asset_file()
-            if content is not None:
-                ast[rtn.asset.asset_id] = content
-        dat[KeyType.all_asset_files] = ast
         return self._send_msg(dat)
 
     def search_transaction_with_condition(self, asset_group_id=None, asset_id=None, user_id=None, count=1):

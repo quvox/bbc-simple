@@ -20,7 +20,6 @@ import os
 import sys
 sys.path.extend(["../../", os.path.abspath(os.path.dirname(__file__))])
 from bbc_simple.core.message_key_types import to_2byte, PayloadType, KeyType, InfraMessageCategory
-from bbc_simple.core import bbclib
 from bbc_simple.core import query_management, message_key_types
 from bbc_simple.logger.fluent_logger import get_fluent_logger
 
@@ -346,3 +345,42 @@ class UserMessageRouting:
             del msg[KeyType.is_anycast]
         self.stats.update_stats_increment("user_message", "send_to_user", 1)
         self.send_message_to_user(msg)
+
+
+class UserMessageRoutingDummy(UserMessageRouting):
+    """Dummy class for bbc_core.py"""
+    def stop_all_timers(self):
+        pass
+
+    def register_user(self, user_id, socket, on_multiple_nodes=False):
+        pass
+
+    def unregister_user(self, user_id, socket=None):
+        pass
+
+    def _add_user_for_forwarding(self, user_id, node_id, permanent=False):
+        pass
+
+    def _remove_user_from_forwarding(self, query_entry=None, user_id=None, node_id=None):
+        pass
+
+    def send_message_to_user(self, msg, direct_only=False):
+        pass
+
+    def _forward_message_to_another_node(self, msg):
+        pass
+
+    def _resolve_accommodating_core_node(self, dst_user_id, src_user_id, orig_msg=None):
+        pass
+
+    def _resolve_success(self, query_entry):
+        pass
+
+    def _resolve_failure(self, query_entry):
+        pass
+
+    def send_multicast_join(self, user_id, permanent=False):
+        pass
+
+    def process_message(self, msg):
+        pass
