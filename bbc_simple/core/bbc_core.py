@@ -29,12 +29,11 @@ from argparse import ArgumentParser
 import sys
 sys.path.extend(["../../"])
 from bbc_simple.core import bbclib
-from bbc_simple.core.message_key_types import KeyType, to_2byte
+from bbc_simple.core.message_key_types import KeyType, to_2byte, InfraMessageCategory
 from bbc_simple.core.bbclib import BBcTransaction, MsgType
 from bbc_simple.core import bbc_network, user_message_routing, data_handler, message_key_types
 from bbc_simple.core import query_management, bbc_stats
 from bbc_simple.core.bbc_config import BBcConfig
-from bbc_simple.core.data_handler import InfraMessageCategory
 from bbc_simple.core.bbc_error import *
 from bbc_simple.logger.fluent_logger import get_fluent_logger
 
@@ -72,27 +71,17 @@ def _make_message_structure(domain_id, cmd, dstid, qid):
     }
 
 
-def _create_search_result(txobj_dict, asset_files_dict):
+def _create_search_result(txobj_dict):
     """Create transaction search result"""
     response_info = dict()
     for txid, txobj in txobj_dict.items():
         if txid != txobj.transaction_id:
             response_info.setdefault(KeyType.compromised_transactions, list()).append(txobj.transaction_data)
             continue
-        txobj_is_valid, valid_assets, invalid_assets = bbclib.validate_transaction_object(txobj, asset_files_dict)
-        if txobj_is_valid:
+        if bbclib.validate_transaction_object(txobj):
             response_info.setdefault(KeyType.transactions, list()).append(txobj.transaction_data)
         else:
             response_info.setdefault(KeyType.compromised_transactions, list()).append(txobj.transaction_data)
-
-        if len(valid_assets) > 0:
-            response_info.setdefault(KeyType.all_asset_files, dict())
-            for asgid, asid in valid_assets:
-                response_info[KeyType.all_asset_files][asid] = asset_files_dict[asid]
-        if len(invalid_assets) > 0:
-            response_info.setdefault(KeyType.compromised_asset_files, dict())
-            for asgid, asid in invalid_assets:
-                response_info[KeyType.compromised_asset_files][asid] = asset_files_dict[asid]
     return response_info
 
 
@@ -246,7 +235,7 @@ class BBcCoreService:
                 if not self._error_reply(msg=retmsg, err_code=ENOTRANSACTION, txt="Cannot find transaction"):
                     user_message_routing.direct_send_to_user(socket, retmsg)
                 return False, None
-            if KeyType.compromised_transaction_data in txinfo or KeyType.compromised_asset_files in txinfo:
+            if KeyType.compromised_transaction_data in txinfo:
                 retmsg[KeyType.status] = EBADTRANSACTION
             retmsg.update(txinfo)
             umr.send_message_to_user(retmsg)
@@ -275,18 +264,16 @@ class BBcCoreService:
                 self.logger.debug("REQUEST_TRAVERSE_TRANSACTIONS: bad format")
                 return False, None
             retmsg = _make_message_structure(domain_id, MsgType.RESPONSE_TRAVERSE_TRANSACTIONS,
-                                            dat[KeyType.source_user_id], dat[KeyType.query_id])
+                                             dat[KeyType.source_user_id], dat[KeyType.query_id])
             retmsg[KeyType.transaction_id] = dat[KeyType.transaction_id]
-            all_included, txtree, asset_files = self._traverse_transactions(domain_id, dat[KeyType.transaction_id],
-                                                                           dat[KeyType.direction], dat[KeyType.hop_count])
+            all_included, txtree = self._traverse_transactions(domain_id, dat[KeyType.transaction_id],
+                                                               dat[KeyType.direction], dat[KeyType.hop_count])
             if txtree is None or len(txtree) == 0:
                 if not self._error_reply(msg=retmsg, err_code=ENOTRANSACTION, txt="Cannot find transaction"):
                     user_message_routing.direct_send_to_user(socket, retmsg)
             else:
                 retmsg[KeyType.transaction_tree] = txtree
                 retmsg[KeyType.all_included] = all_included
-                if len(asset_files) > 0:
-                    retmsg[KeyType.all_asset_files] = asset_files
                 umr.send_message_to_user(retmsg)
 
         elif cmd == MsgType.REQUEST_GATHER_SIGNATURE:
@@ -300,14 +287,13 @@ class BBcCoreService:
                     user_message_routing.direct_send_to_user(socket, retmsg)
 
         elif cmd == MsgType.REQUEST_INSERT:
-            if not self._param_check([KeyType.domain_id, KeyType.transaction_data, KeyType.all_asset_files], dat):
+            if not self._param_check([KeyType.domain_id, KeyType.transaction_data], dat):
                 self.logger.debug("REQUEST_INSERT: bad format")
                 return False, None
             transaction_data = dat[KeyType.transaction_data]
-            asset_files = dat[KeyType.all_asset_files]
             retmsg = _make_message_structure(domain_id, MsgType.RESPONSE_INSERT,
                                             dat[KeyType.source_user_id], dat[KeyType.query_id])
-            ret = self.insert_transaction(dat[KeyType.domain_id], transaction_data, asset_files)
+            ret = self.insert_transaction(dat[KeyType.domain_id], transaction_data)
             if isinstance(ret, str):
                 if not self._error_reply(msg=retmsg, err_code=EINVALID_COMMAND, txt=ret):
                     user_message_routing.direct_send_to_user(socket, retmsg)
@@ -369,17 +355,6 @@ class BBcCoreService:
             retmsg = _make_message_structure(domain_id, MsgType.RESPONSE_GET_STATS,
                                              dat[KeyType.source_user_id], dat[KeyType.query_id])
             retmsg[KeyType.stats] = copy.deepcopy(self.stats.get_stats())
-            user_message_routing.direct_send_to_user(socket, retmsg)
-
-        elif cmd == MsgType.REQUEST_GET_NEIGHBORLIST:
-            retmsg = _make_message_structure(domain_id, MsgType.RESPONSE_GET_NEIGHBORLIST,
-                                             dat[KeyType.source_user_id], dat[KeyType.query_id])
-            if domain_id in self.networking.domains:
-                retmsg[KeyType.domain_id] = domain_id
-                retmsg[KeyType.neighbor_list] = self.networking.domains[domain_id]['topology'].make_neighbor_list()
-            else:
-                retmsg[KeyType.status] = False
-                retmsg[KeyType.reason] = "No such domain"
             user_message_routing.direct_send_to_user(socket, retmsg)
 
         elif cmd == MsgType.REQUEST_GET_CONFIG:
@@ -463,29 +438,6 @@ class BBcCoreService:
                 retmsg[KeyType.reason] = "No such domain"
             user_message_routing.direct_send_to_user(socket, retmsg)
 
-        elif cmd == MsgType.DOMAIN_PING:
-            if not self._param_check([KeyType.domain_id, KeyType.source_user_id, KeyType.port_number], dat):
-                return False, None
-            ipv4 = dat.get(KeyType.ipv4_address, None)
-            ipv6 = dat.get(KeyType.ipv6_address, None)
-            if ipv4 is None and ipv6 is None:
-                return False, None
-            port = dat[KeyType.port_number]
-            self.networking.send_domain_ping(domain_id, ipv4, ipv6, port)
-
-        elif cmd == MsgType.REQUEST_SET_STATIC_NODE:
-            retmsg = _make_message_structure(domain_id, MsgType.RESPONSE_SET_STATIC_NODE,
-                                             dat[KeyType.source_user_id], dat[KeyType.query_id])
-            retmsg[KeyType.domain_id] = domain_id
-            node_info = dat.get(KeyType.node_info, None)
-            if node_info is None:
-                retmsg[KeyType.result] = False
-            else:
-                self.networking.add_neighbor(domain_id, *node_info, is_static=True)
-                self.config.update_config()
-                retmsg[KeyType.result] = True
-            user_message_routing.direct_send_to_user(socket, retmsg)
-
         else:
             self.logger.error("Bad command/response: %s" % cmd)
         return False, None
@@ -539,12 +491,11 @@ class BBcCoreService:
         if len(self.insert_notification_user_list[domain_id]) == 0:
             self.insert_notification_user_list.pop(domain_id, None)
 
-    def validate_transaction(self, txdata, asset_files=None):
+    def validate_transaction(self, txdata):
         """Validate transaction by verifying signature
 
         Args:
             txdata (bytes): serialized transaction data
-            asset_files (dict): dictionary of {asset_id: content} for the transaction
         Returns:
             BBcTransaction: if validation fails, None returns.
         """
@@ -555,24 +506,18 @@ class BBcCoreService:
             return None
         txobj.digest()
 
-        txobj_is_valid, valid_assets, invalid_assets = bbclib.validate_transaction_object(txobj, asset_files)
-        if not txobj_is_valid:
-            self.stats.update_stats_increment("transaction", "invalid", 1)
-        if len(invalid_assets) > 0:
-            self.stats.update_stats_increment("asset_file", "invalid", 1)
-
-        if txobj_is_valid and len(invalid_assets) == 0:
+        if bbclib.validate_transaction_object(txobj):
             return txobj
         else:
+            self.stats.update_stats_increment("transaction", "invalid", 1)
             return None
 
-    def insert_transaction(self, domain_id, txdata, asset_files):
+    def insert_transaction(self, domain_id, txdata):
         """Insert transaction into ledger
 
         Args:
             domain_id (bytes): target domain_id
             txdata (bytes): serialized transaction data
-            asset_files (dict): dictionary of {asset_id: content} for the transaction
         Returns:
             dict|str: inserted transaction_id or error message
         """
@@ -581,11 +526,7 @@ class BBcCoreService:
             self.stats.update_stats_increment("transaction", "insert_fail_count", 1)
             self.logger.error("No such domain")
             return "Set up the domain, first!"
-        if domain_id == bbclib.domain_global_0:
-            self.stats.update_stats_increment("transaction", "insert_fail_count", 1)
-            self.logger.error("Insert is not allowed in domain_global_0")
-            return "Insert is not allowed in domain_global_0"
-        txobj = self.validate_transaction(txdata, asset_files)
+        txobj = self.validate_transaction(txdata)
         if txobj is None:
             self.stats.update_stats_increment("transaction", "insert_fail_count", 1)
             self.logger.error("Bad transaction format")
@@ -593,8 +534,7 @@ class BBcCoreService:
         self.logger.debug("[node:%s] insert_transaction %s" %
                           (self.networking.domains[domain_id]['name'], binascii.b2a_hex(txobj.transaction_id[:4])))
 
-        asset_group_ids = self.networking.domains[domain_id]['data'].insert_transaction(txdata, txobj=txobj,
-                                                                                        asset_files=asset_files)
+        asset_group_ids = self.networking.domains[domain_id]['data'].insert_transaction(txdata, txobj=txobj)
         if asset_group_ids is None:
             self.stats.update_stats_increment("transaction", "insert_fail_count", 1)
             self.logger.error("[%s] Fail to insert a transaction into the ledger" % self.networking.domains[domain_id]['name'])
@@ -633,7 +573,6 @@ class BBcCoreService:
             KeyType.infra_command: data_handler.DataHandler.NOTIFY_INSERTED,
             KeyType.command: MsgType.NOTIFY_INSERTED,
             KeyType.transaction_id: transaction_id,
-            KeyType.asset_group_ids: list(asset_group_ids),
         }
         for user_id in destination_users:
             msg[KeyType.destination_user_id] = user_id
@@ -667,8 +606,6 @@ class BBcCoreService:
             msg[KeyType.transaction_data] = dat[KeyType.transaction_data]
             if KeyType.transactions in dat:
                 msg[KeyType.transactions] = dat[KeyType.transactions]
-            if KeyType.all_asset_files in dat:
-                msg[KeyType.all_asset_files] = dat[KeyType.all_asset_files]
             umr.send_message_to_user(msg)
         return True
 
@@ -690,11 +627,11 @@ class BBcCoreService:
             return None
 
         dh = self.networking.domains[domain_id]['data']
-        ret_txobj, ret_asset_files = dh.search_transaction(transaction_id=transaction_id)
+        ret_txobj = dh.search_transaction(transaction_id=transaction_id)
         if ret_txobj is None or len(ret_txobj) == 0:
             return None
 
-        response_info = _create_search_result(ret_txobj, ret_asset_files)
+        response_info = _create_search_result(ret_txobj)
         response_info[KeyType.transaction_id] = transaction_id
         if KeyType.transactions in response_info:
             response_info[KeyType.transaction_data] = response_info[KeyType.transactions][0]
@@ -723,12 +660,11 @@ class BBcCoreService:
             return None
 
         dh = self.networking.domains[domain_id]['data']
-        ret_txobj, ret_asset_files = dh.search_transaction(asset_group_id=asset_group_id,
-                                                           asset_id=asset_id, user_id=user_id, count=count)
+        ret_txobj = dh.search_transaction(asset_group_id=asset_group_id, asset_id=asset_id, user_id=user_id, count=count)
         if ret_txobj is None or len(ret_txobj) == 0:
             return None
 
-        return _create_search_result(ret_txobj, ret_asset_files)
+        return _create_search_result(ret_txobj)
 
     def _traverse_transactions(self, domain_id, transaction_id, direction=1, hop_count=3):
         """Get transaction tree from the specified transaction_id
@@ -742,7 +678,7 @@ class BBcCoreService:
             direction (int): 1:backward, non-1:forward
             hop_count (bytes): hop count to traverse
         Returns:
-            list: list of [include_all_flag, transaction tree, asset_files]
+            list: list of [include_all_flag, transaction tree]
         """
         self.stats.update_stats_increment("transaction", "search_count", 1)
         if domain_id is None:
@@ -754,7 +690,6 @@ class BBcCoreService:
 
         dh = self.networking.domains[domain_id]['data']
         txtree = list()
-        asset_files = dict()
 
         traverse_to_past = True if direction == 1 else False
         tx_count = 0
@@ -777,12 +712,10 @@ class BBcCoreService:
                     continue
                 tx_count += 1
                 txids[txid] = True
-                ret_txobj, ret_asset_files = dh.search_transaction(transaction_id=txid)
+                ret_txobj = dh.search_transaction(transaction_id=txid)
                 if ret_txobj is None or len(ret_txobj) == 0:
                     continue
                 tx_brothers.append(ret_txobj[txid].transaction_data)
-                if len(ret_asset_files) > 0:
-                    asset_files.update(ret_asset_files)
 
                 ret = dh.search_transaction_topology(transaction_id=txid, traverse_to_past=traverse_to_past)
                 #print("txid=%s: (%d) ret=%s" % (txid.hex(), len(ret), ret))
@@ -798,7 +731,7 @@ class BBcCoreService:
                 txtree.append(tx_brothers)
             current_txids = next_txids
 
-        return include_all_flag, txtree, asset_files
+        return include_all_flag, txtree
 
 
 def daemonize(pidfile=PID_FILE):

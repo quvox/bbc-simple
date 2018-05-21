@@ -28,8 +28,9 @@ config = {
             "db": {
                 "db_addr": "127.0.0.1",
                 "db_port": 3306,
-                "db_user": "root",
-                "db_pass": "password",
+                "db_user": "user",
+                "db_pass": "pass",
+                "db_rootpass": "password",
             },
         }
     }
@@ -37,9 +38,7 @@ config = {
 
 
 def prepare_db():
-    domain_id_str = domain_id.hex()[:16]
     subprocess.call(["sh", "mysql_docker.sh"])
-    subprocess.call(["mysql", "-u", "root", "-ppassword", "-h", "127.0.0.1", "-e", "create database %s;" % domain_id_str])
 
 
 class DummyCore:

@@ -89,7 +89,9 @@ class BBcNetwork:
         self.domains[domain_id]['user'] = UserMessageRouting(self, domain_id)
 
         workingdir = self.config.get_config()['workingdir']
-        self.domains[domain_id]['data'] = DataHandler(self, config=conf, workingdir=workingdir, domain_id=domain_id)
+        db_default = self.config.get_config()['db']
+        self.domains[domain_id]['data'] = DataHandler(self, default_config=db_default, config=conf,
+                                                      workingdir=workingdir, domain_id=domain_id)
 
         self.stats.update_stats_increment("network", "num_domains", 1)
         self.logger.info("Domain %s is created" % (domain_id.hex()))
@@ -111,10 +113,10 @@ class BBcNetwork:
             KeyType.infra_msg_type: InfraMessageCategory.CATEGORY_NETWORK,
             KeyType.domain_id: domain_id,
             KeyType.command: BBcNetwork.NOTIFY_LEAVE,
-            KeyType.source_node_id: self.domains[domain_id]["neighbor"].my_node_id,
+            KeyType.source_node_id: self.domains[domain_id]["node_id"],
             KeyType.nonce: bbclib.get_random_value(32)   # just for randomization
         }
-        self.broadcast_message_in_network(domain_id=domain_id, msg=msg)
+        #self.broadcast_message_in_network(domain_id=domain_id, msg=msg)
 
         del self.domains[domain_id]
         self.config.remove_domain_config(domain_id)

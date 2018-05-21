@@ -2,11 +2,12 @@
 """
 Copyright (c) 2018 quvox.net
 
-This code is based on that in bbc-1 (https://github.com/beyond-blockchain/bbc_simple)
+This code is based on that in bbc-1 (https://github.com/beyond-blockchain/bbc1.git)
 """
-
+import subprocess
+import mysql.connector
 import traceback
-import binascii
+
 import os
 import sys
 sys.path.extend(["../../", os.path.abspath(os.path.dirname(__file__))])
@@ -37,7 +38,7 @@ class DataHandler:
     NOTIFY_INSERTED = to_2byte(4)
     REPAIR_TRANSACTION_DATA = to_2byte(5)
 
-    def __init__(self, networking=None, config=None, workingdir=None, domain_id=None):
+    def __init__(self, networking=None, default_config=None, config=None, workingdir=None, domain_id=None):
         self.networking = networking
         self.core = networking.core
         self.stats = networking.core.stats
@@ -47,20 +48,29 @@ class DataHandler:
         self.config = config
         self.working_dir = workingdir
         self.db_adaptor = None
-        self.dbs = list()
-        self._db_setup()
+        self._db_setup(default_config)
 
-    def _db_setup(self):
+    def _db_setup(self, default_config):
         """Setup DB"""
-        dbconf = self.config['db']
-        db_name = dbconf.get("db_name", self.domain_id_str)
-        db_addr = dbconf.get("db_addr", "127.0.0.1")
-        db_port = dbconf.get("db_port", 3306)
-        db_user = dbconf.get("db_user", "user")
-        db_pass = dbconf.get("db_pass", "password")
+        if 'db' in self.config:
+            dbconf = self.config['db']
+            db_name = dbconf.get("db_name", self.domain_id_str)
+            db_addr = dbconf.get("db_addr", "127.0.0.1")
+            db_port = dbconf.get("db_port", 3306)
+            db_user = dbconf.get("db_user", "user")
+            db_pass = dbconf.get("db_pass", "pass")
+            db_rootpass = dbconf.get("db_rootpass", "password")
+        else:
+            db_name = default_config.get("db_name", self.domain_id_str)
+            db_addr = default_config.get("db_addr", "127.0.0.1")
+            db_port = default_config.get("db_port", 3306)
+            db_user = default_config.get("db_user", "user")
+            db_pass = default_config.get("db_pass", "pass")
+            db_rootpass = default_config.get("db_rootpass", "password")
+
         self.db_adaptor = MysqlAdaptor(self, db_name=db_name, server_info=(db_addr, db_port, db_user, db_pass))
 
-        self.db_adaptor.open_db()
+        self.db_adaptor.open_db(db_rootpass)
         self.db_adaptor.create_table('transaction_table', transaction_tbl_definition, primary_key=0, indices=[0])
         self.db_adaptor.create_table('asset_info_table', asset_info_definition, primary_key=0, indices=[0, 1, 2, 3, 4])
         self.db_adaptor.create_table('topology_table', topology_info_definition, primary_key=0, indices=[0, 1, 2])
@@ -348,10 +358,10 @@ class DbAdaptor:
         self.handler = handler
         self.db = None
         self.db_cur = None
-        self.db_name = db_name
+        self.db_name = "dom"+db_name
         self.placeholder = ""
 
-    def open_db(self):
+    def open_db(self, rootpass):
         """Open the DB"""
         pass
 
@@ -374,9 +384,19 @@ class MysqlAdaptor(DbAdaptor):
         self.db_user = server_info[2]
         self.db_pass = server_info[3]
 
-    def open_db(self):
+    def open_db(self, rootpass):
         """Open the DB"""
-        import mysql.connector
+        try:
+            subprocess.call(
+                ["mysql", "-u", "root", "-p%s" % rootpass, "--host", self.db_addr, "--port", str(self.db_port),
+                 "-e", "create database %s;" % self.db_name])
+            grant_sql = "GRANT ALL ON %s.* TO '%s'@'%%';" % (self.db_name, self.db_user)
+            subprocess.call(
+                ["mysql", "-u", "root", "-p%s" % rootpass, "--host", self.db_addr, "--port", str(self.db_port),
+                 "-e", grant_sql])
+        except Exception as e:
+            self.handler.logger.error(e)
+
         self.db = mysql.connector.connect(
             host=self.db_addr,
             port=self.db_port,
@@ -411,7 +431,7 @@ class MysqlAdaptor(DbAdaptor):
             sql += ", PRIMARY KEY (%s(32))" % tbl_definition[primary_key][0]
         else:
             sql += ", PRIMARY KEY (%s)" % tbl_definition[primary_key][0]
-        sql += ") CHARSET=utf8;"
+        sql += ") CHARSET=utf8 ENGINE=MyISAM;"
         self.handler.exec_sql(sql=sql, commit=True)
         for idx in indices:
             if tbl_definition[idx][1] in ["BLOB", "TEXT"]:

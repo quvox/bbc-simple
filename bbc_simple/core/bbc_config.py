@@ -25,6 +25,14 @@ current_config = {
     'client': {
         'port': DEFAULT_CORE_PORT,
     },
+    'db': {
+        "db_type": "mysql",
+        "db_addr": "127.0.0.1",
+        "db_port": 3306,
+        "db_user": "user",
+        "db_pass": "pass",
+        "db_rootpass": "password",
+    },
     'domains': {
         '0000000000000000000000000000000000000000000000000000000000000000': {
         },
@@ -104,21 +112,9 @@ class BBcConfig:
         conf = self.read_config()
         if 'domains' in conf and domain_id_str in conf['domains']:
             self.config['domains'][domain_id_str] = conf['domains'][domain_id_str]
-
+            return self.config['domains'][domain_id_str]
         if create_if_new and domain_id_str not in self.config['domains']:
-            self.config['domains'][domain_id_str] = {
-                'storage': {
-                    "type": "internal",  # or "external"
-                },
-                'db': {
-                    "db_type": "mongo",            # or "mysql"
-                    "db_name": "bbc_ledger.sqlite",
-                    "replication_strategy": "all",  # or "p2p"/"external" (valid only in db_type=mysql)
-                    "db_servers": [{"db_addr": "127.0.0.1", "db_port": 3306, "db_user": "user", "db_pass": "pass"}]
-                    # valid only in the case of db_type=mysql
-                },
-            }
-        if domain_id_str in self.config['domains']:
+            self.config['domains'][domain_id_str] = conf['db']  # default セッティング
             return self.config['domains'][domain_id_str]
         return None
 
