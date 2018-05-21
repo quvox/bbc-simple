@@ -3,6 +3,10 @@ from logging import config, getLogger
 
 import msgpack
 import yaml
+import os
+import sys
+
+current_dir = os.path.abspath(os.path.dirname(__file__))
 
 
 def get_fluent_logger(conf_filename='logconf.yml', name=''):
@@ -12,7 +16,7 @@ def get_fluent_logger(conf_filename='logconf.yml', name=''):
     :return:
     """
     """read config file"""
-    with open(conf_filename) as f:
+    with open(os.path.join(current_dir, conf_filename)) as f:
         conf = yaml.load(f)
     """setup globally"""
     config.dictConfig(conf["logging"])
