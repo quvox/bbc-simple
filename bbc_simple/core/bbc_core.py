@@ -399,8 +399,7 @@ class BBcCoreService:
         elif cmd == MsgType.REQUEST_GET_NODEID:
             retmsg = _make_message_structure(domain_id, MsgType.RESPONSE_GET_NODEID,
                                              dat[KeyType.source_user_id], dat[KeyType.query_id])
-            data = bytearray()
-            data.extend(self.networking.domains[domain_id]['topology'].my_node_id)
+            data = bytearray(self.networking.domains[domain_id]['node_id'])
             retmsg[KeyType.node_id] = bytes(data)
             user_message_routing.direct_send_to_user(socket, retmsg)
 
