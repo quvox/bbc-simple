@@ -407,12 +407,15 @@ class BBcCoreService:
             retmsg = _make_message_structure(domain_id, MsgType.RESPONSE_GET_NOTIFICATION_LIST,
                                              dat[KeyType.source_user_id], dat[KeyType.query_id])
             data = bytearray()
-            data.extend(to_2byte(len(self.insert_notification_user_list[domain_id])))
-            for asset_group_id in self.insert_notification_user_list[domain_id].keys():
-                data.extend(asset_group_id)
-                data.extend(to_2byte(len(self.insert_notification_user_list[domain_id][asset_group_id])))
-                for user_id in self.insert_notification_user_list[domain_id][asset_group_id]:
-                    data.extend(user_id)
+            if domain_id not in self.insert_notification_user_list:
+                data.extend(to_2byte(0))
+            else:
+                data.extend(to_2byte(len(self.insert_notification_user_list[domain_id])))
+                for asset_group_id in self.insert_notification_user_list[domain_id].keys():
+                    data.extend(asset_group_id)
+                    data.extend(to_2byte(len(self.insert_notification_user_list[domain_id][asset_group_id])))
+                    for user_id in self.insert_notification_user_list[domain_id][asset_group_id]:
+                        data.extend(user_id)
             retmsg[KeyType.notification_list] = bytes(data)
             user_message_routing.direct_send_to_user(socket, retmsg)
 

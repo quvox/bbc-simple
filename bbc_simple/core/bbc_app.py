@@ -31,7 +31,7 @@ MESSAGE_WITH_NO_RESPONSE = (MsgType.MESSAGE, MsgType.REGISTER, MsgType.UNREGISTE
                             MsgType.REQUEST_REPAIR)
 
 
-def _parse_one_level_list(dat):
+def parse_one_level_list(dat):
     """Get list information from queued message
     Args:
         dat (bytes): received message data
@@ -46,7 +46,7 @@ def _parse_one_level_list(dat):
     return results
 
 
-def _parse_two_level_dict(dat):
+def parse_two_level_dict(dat):
     """Get hierarchical list information from queued message
     Args:
         dat (bytes): received message data
@@ -768,7 +768,7 @@ class Callback:
         if KeyType.domain_list not in dat:
             self.queue.put(None)
             return
-        self.queue.put(_parse_one_level_list(dat[KeyType.domain_list]))
+        self.queue.put(parse_one_level_list(dat[KeyType.domain_list]))
 
     def proc_resp_get_userlist(self, dat):
         """Callback for message RESPONSE_GET_USERS
@@ -782,7 +782,7 @@ class Callback:
         if KeyType.user_list not in dat:
             self.queue.put(None)
             return
-        self.queue.put(_parse_one_level_list(dat[KeyType.user_list]))
+        self.queue.put(parse_one_level_list(dat[KeyType.user_list]))
 
     def proc_resp_get_forwardinglist(self, dat):
         """Callback for message RESPONSE_GET_FORWARDING_LIST
@@ -796,7 +796,7 @@ class Callback:
         if KeyType.forwarding_list not in dat:
             self.queue.put(None)
             return
-        self.queue.put(_parse_two_level_dict(dat[KeyType.forwarding_list]))
+        self.queue.put(parse_two_level_dict(dat[KeyType.forwarding_list]))
 
     def proc_resp_get_notificationlist(self, dat):
         """Callback for message RESPONSE_GET_NOTIFICATION_LIST
@@ -810,7 +810,7 @@ class Callback:
         if KeyType.notification_list not in dat:
             self.queue.put(None)
             return
-        self.queue.put(_parse_two_level_dict(dat[KeyType.notification_list]))
+        self.queue.put(parse_two_level_dict(dat[KeyType.notification_list]))
 
     def proc_resp_get_node_id(self, dat):
         """Callback for message RESPONSE_GET_NODEID
