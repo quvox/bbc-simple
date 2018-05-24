@@ -22,7 +22,7 @@ import os
 import sys
 sys.path.extend(["../../", os.path.abspath(os.path.dirname(__file__))])
 from bbc_simple.core.message_key_types import PayloadType, KeyType
-from bbc_simple.core import message_key_types
+from bbc_simple.core import message_key_types, bbc_network
 from bbc_simple.logger.fluent_logger import get_fluent_logger
 
 
@@ -124,6 +124,7 @@ class UserMessageRouting:
                             self.networking.redis_msg.lpop(dst_user_id)
                         else:
                             self.networking.redis_msg.lset(dst_user_id, idx, None)
+                        self.networking.redis_msg.expire(dst_user_id, bbc_network.MSG_EXPIRE_SECONDS)
                     else:
                         idx += 1
                     cnt -= 1

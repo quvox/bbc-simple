@@ -21,14 +21,13 @@ import sys
 sys.path.extend(["../../", os.path.abspath(os.path.dirname(__file__))])
 from bbc_simple.core.user_message_routing import UserMessageRouting
 from bbc_simple.core.data_handler import DataHandler
-from bbc_simple.core import query_management, message_key_types
+from bbc_simple.core import message_key_types
 from bbc_simple.core import bbclib
-from bbc_simple.core.message_key_types import to_2byte, PayloadType, KeyType, InfraMessageCategory
-from bbc_simple.core.bbc_error import *
+from bbc_simple.core.message_key_types import to_2byte, PayloadType
 from bbc_simple.logger.fluent_logger import get_fluent_logger
 
 
-ticker = query_management.get_ticker()
+MSG_EXPIRE_SECONDS = 30
 
 
 def _convert_to_string(array):
@@ -147,5 +146,9 @@ class BBcNetwork:
             bool: True if successful
         """
         dat = message_key_types.make_message(PayloadType.Type_msgpack, msg)
-        self.redis_msg.lpush(dst_user_id, bytes(dat))
+        if not self.redis_msg.exists(dst_user_id):
+            self.redis_msg.lpush(dst_user_id, bytes(dat))
+            self.redis_msg.expire(dst_user_id, MSG_EXPIRE_SECONDS)
+        else:
+            self.redis_msg.lpush(dst_user_id, bytes(dat))
         self.redis_pubsub.publish(domain_id, dst_user_id)
