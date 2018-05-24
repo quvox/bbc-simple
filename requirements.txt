@@ -12,3 +12,5 @@ dictproxyhack==1.1
 fluent-logger==0.9.0
 PyYAML==3.12
 bson
+Flask==1.0.2
+Flask-Cors==3.0.4
