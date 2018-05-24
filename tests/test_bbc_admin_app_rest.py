@@ -86,12 +86,6 @@ class TestBBcAppClient(object):
         assert req.status_code == 200
         print("response:", req.json())
 
-    def test_07_get_forwarding_list(self):
-        print("\n-----", sys._getframe().f_code.co_name, "-----")
-        req = requests.get(BASE_URL+'/get_forwarding_list/'+domain_id.hex())
-        assert req.status_code == 200
-        print("response:", req.json())
-
     def test_08_get_notification_list(self):
         print("\n-----", sys._getframe().f_code.co_name, "-----")
         req = requests.get(BASE_URL+'/get_notification_list/'+domain_id.hex())

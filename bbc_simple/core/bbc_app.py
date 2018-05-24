@@ -246,19 +246,6 @@ class BBcAppClient:
         self.include_admin_info(dat, admin_info, None)
         return self._send_msg(dat)
 
-    def get_forwarding_list(self):
-        """Get forwarding_list of the domain in the core node
-
-        Returns:
-            bytes: query_id
-        """
-        dat = self._make_message_structure(MsgType.REQUEST_GET_FORWARDING_LIST)
-        admin_info = {
-            KeyType.random: bbclib.get_random_value(32)
-        }
-        self.include_admin_info(dat, admin_info, None)
-        return self._send_msg(dat)
-
     def get_notification_list(self):
         """Get notification_list of the core node
 
@@ -580,8 +567,6 @@ class Callback:
             self.proc_resp_get_domainlist(dat)
         elif dat[KeyType.command] == MsgType.RESPONSE_GET_USERS:
             self.proc_resp_get_userlist(dat)
-        elif dat[KeyType.command] == MsgType.RESPONSE_GET_FORWARDING_LIST:
-            self.proc_resp_get_forwardinglist(dat)
         elif dat[KeyType.command] == MsgType.RESPONSE_GET_NOTIFICATION_LIST:
             self.proc_resp_get_notificationlist(dat)
         elif dat[KeyType.command] == MsgType.RESPONSE_GET_NODEID:
@@ -783,20 +768,6 @@ class Callback:
             self.queue.put(None)
             return
         self.queue.put(parse_one_level_list(dat[KeyType.user_list]))
-
-    def proc_resp_get_forwardinglist(self, dat):
-        """Callback for message RESPONSE_GET_FORWARDING_LIST
-
-        List of user_ids in other core nodes is queued rather than message itself.
-        This method should be overridden if you want to process the message asynchronously.
-
-        Args:
-            dat (dict): received message
-        """
-        if KeyType.forwarding_list not in dat:
-            self.queue.put(None)
-            return
-        self.queue.put(parse_two_level_dict(dat[KeyType.forwarding_list]))
 
     def proc_resp_get_notificationlist(self, dat):
         """Callback for message RESPONSE_GET_NOTIFICATION_LIST

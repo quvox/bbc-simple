@@ -4,6 +4,7 @@ import pytest
 import shutil
 import queue
 import time
+import redis
 
 import os
 import sys
@@ -27,6 +28,7 @@ users = [bbclib.get_new_id("test_user_%i" % i) for i in range(core_nodes)]
 result_queue = queue.Queue()
 
 sample_resource_id = bbclib.get_new_id("sample_resource_id")
+redis = redis.StrictRedis(host="localhost")
 
 
 def get_random_data(length=16):
@@ -63,7 +65,13 @@ class TestBBcNetwork(object):
             nodes[i] = networkings[i].domains[domain_id]['node_id']
             assert nodes[i] is not None
 
-    def test_02_leave_domain(self):
+    def test_02_sleep(self):
+        print("\n-----", sys._getframe().f_code.co_name, "-----")
+        for i in range(10):
+            print("pub:", domain_id.hex())
+            redis.publish(domain_id, 'xxxxx')
+
+    def test_10_leave_domain(self):
         print("\n-----", sys._getframe().f_code.co_name, "-----")
         networkings[core_nodes-1].remove_domain(domain_id)
         print("-- wait 5 seconds --")

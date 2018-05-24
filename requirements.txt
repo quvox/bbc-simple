@@ -3,7 +3,7 @@ jinja2>=2.8.1
 requests>=2.12.4
 gevent>=1.2.1
 greenlet
-cryptography==2.1.4
+cryptography
 pytest<=3.2.*,>=3.0.5
 msgpack-python
 mysql-connector-python==8.0.5
@@ -14,3 +14,4 @@ PyYAML==3.12
 bson
 Flask==1.0.2
 Flask-Cors==3.0.4
+redis

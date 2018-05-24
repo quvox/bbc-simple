@@ -87,7 +87,7 @@ def _create_search_result(txobj_dict):
 
 class BBcCoreService:
     """Base service object of BBc-1"""
-    def __init__(self, core_port=None, ipv6=False, workingdir=".bbc1", configfile=None, server_start=True):
+    def __init__(self, core_port=None, workingdir=".bbc1", configfile=None, ipv6=False, server_start=True):
         self.logger = get_fluent_logger(name="bbc_core")
         self.stats = bbc_stats.BBcStats()
         self.config = BBcConfig(workingdir, configfile)
@@ -115,7 +115,7 @@ class BBcCoreService:
         """Start TCP(v4 or v6) server"""
         pool = Pool(POOL_SIZE)
         if self.ipv6:
-            server = StreamServer(("::", pFort), self._handler, spawn=pool)
+            server = StreamServer(("::", port), self._handler, spawn=pool)
         else:
             server = StreamServer(("0.0.0.0", port), self._handler, spawn=pool)
         try:
@@ -373,19 +373,6 @@ class BBcCoreService:
             retmsg[KeyType.domain_list] = bytes(data)
             user_message_routing.direct_send_to_user(socket, retmsg)
 
-        elif cmd == MsgType.REQUEST_GET_FORWARDING_LIST:
-            retmsg = _make_message_structure(domain_id, MsgType.RESPONSE_GET_FORWARDING_LIST,
-                                             dat[KeyType.source_user_id], dat[KeyType.query_id])
-            data = bytearray()
-            data.extend(to_2byte(len(umr.forwarding_entries)))
-            for user_id in umr.forwarding_entries:
-                data.extend(user_id)
-                data.extend(to_2byte(len(umr.forwarding_entries[user_id]['nodes'])))
-                for node_id in umr.forwarding_entries[user_id]['nodes']:
-                    data.extend(node_id)
-            retmsg[KeyType.forwarding_list] = bytes(data)
-            user_message_routing.direct_send_to_user(socket, retmsg)
-
         elif cmd == MsgType.REQUEST_GET_USERS:
             retmsg = _make_message_structure(domain_id, MsgType.RESPONSE_GET_USERS,
                                              dat[KeyType.source_user_id], dat[KeyType.query_id])
@@ -562,10 +549,6 @@ class BBcCoreService:
                 if asset_group_id in self.insert_notification_user_list[domain_id]:
                     for user_id in self.insert_notification_user_list[domain_id][asset_group_id]:
                         destination_users.add(user_id)
-            if not only_registered_user:
-                if asset_group_id in umr.forwarding_entries:
-                    for node_id in umr.forwarding_entries[asset_group_id]['nodes']:
-                        destination_nodes.add(node_id)
 
         if len(destination_users) == 0 and len(destination_nodes) == 0:
             return
@@ -757,7 +740,7 @@ def parser():
     argparser.add_argument('-cp', '--coreport', type=int, default=DEFAULT_CORE_PORT, help='waiting TCP port')
     argparser.add_argument('-w', '--workingdir', type=str, default=".bbc1", help='working directory name')
     argparser.add_argument('-c', '--config', type=str, default=None, help='config file name')
-    argparser.add_argument('-6', '--ivp6', action='store_true', default=False, help='Use IPv6 for waiting TCP connection')
+    argparser.add_argument('-6', '--ipv6', action='store_true', default=False, help='Use IPv6 for waiting TCP connection')
     argparser.add_argument('-d', '--daemon', action='store_true', help='run in background')
     argparser.add_argument('-k', '--kill', action='store_true', help='kill the daemon')
     args = argparser.parse_args()

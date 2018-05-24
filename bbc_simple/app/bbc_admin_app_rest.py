@@ -175,29 +175,6 @@ def get_user_list(domain_id_str=None):
     return jsonify(msg), 200
 
 
-@http.route('/get_forwarding_list/<domain_id_str>', methods=['GET', 'OPTIONS'])
-@crossdomain(origin='*', headers=['Content-Type'])
-def get_forwarding_list(domain_id_str=None):
-    try:
-        domain_id = binascii.a2b_hex(domain_id_str)
-        bbcapp.set_domain_id(domain_id)
-    except:
-        return jsonify({'error': 'invalid request'}), 500
-    qid = bbcapp.get_forwarding_list()
-    retmsg = bbcapp.callback.sync_by_queryid(qid, timeout=5)
-    if retmsg is None:
-        return jsonify({'error': 'No response'}), 400
-    tmpdict = bbc_app.parse_two_level_dict(retmsg[KeyType.forwarding_list])
-    forwarding_list = dict()
-    for i in tmpdict.keys():
-        forwarding_list[i.hex()] = list()
-        for k in tmpdict[i]:
-            forwarding_list[i.hex()].append(k.hex())
-    msg = {'forwarding_list': forwarding_list}
-    flog.debug({'cmd': 'get_forwarding_list', 'forwarding_list': forwarding_list})
-    return jsonify(msg), 200
-
-
 @http.route('/get_notification_list/<domain_id_str>', methods=['GET', 'OPTIONS'])
 @crossdomain(origin='*', headers=['Content-Type'])
 def get_notification_list(domain_id_str=None):

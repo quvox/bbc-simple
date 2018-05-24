@@ -25,6 +25,10 @@ current_config = {
     'client': {
         'port': DEFAULT_CORE_PORT,
     },
+    'redis': {
+        'host': "localhost",
+        'port': 6379,
+    },
     'db': {
         "db_type": "mysql",
         "db_addr": "127.0.0.1",
