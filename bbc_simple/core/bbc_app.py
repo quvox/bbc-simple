@@ -12,7 +12,6 @@ import traceback
 import queue
 import hashlib
 import bson
-import os
 
 import sys
 sys.path.append("../../")

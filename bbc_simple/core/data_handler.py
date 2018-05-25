@@ -30,12 +30,6 @@ topology_info_definition = [
 
 class DataHandler:
     """DB and storage handler"""
-    REQUEST_REPLICATION_INSERT = to_2byte(0)
-    RESPONSE_REPLICATION_INSERT = to_2byte(1)
-    REQUEST_SEARCH = to_2byte(2)
-    RESPONSE_SEARCH = to_2byte(3)
-    NOTIFY_INSERTED = to_2byte(4)
-    REPAIR_TRANSACTION_DATA = to_2byte(5)
 
     def __init__(self, networking=None, default_config=None, config=None, workingdir=None, domain_id=None):
         self.networking = networking
@@ -302,53 +296,6 @@ class DataHandler:
         else:
             return self.exec_sql(sql="SELECT * FROM topology_table WHERE point_to = %s" %
                                  self.db_adaptor.placeholder, args=(transaction_id,))
-
-    def process_message(self, msg):
-        """Process received message
-
-        Args:
-            msg (dict): received message
-        """
-        if KeyType.infra_command not in msg:
-            return
-
-        if msg[KeyType.infra_command] == DataHandler.REQUEST_REPLICATION_INSERT:
-            self.stats.update_stats_increment("data_handler", "REQUEST_REPLICATION_INSERT", 1)
-            self.insert_transaction(msg[KeyType.transaction_data])
-
-        elif msg[KeyType.infra_command] == DataHandler.RESPONSE_REPLICATION_INSERT:
-            self.stats.update_stats_increment("data_handler", "RESPONSE_REPLICATION_INSERT", 1)
-            pass
-
-        elif msg[KeyType.infra_command] == DataHandler.REQUEST_SEARCH:
-            self.stats.update_stats_increment("data_handler", "REQUEST_SEARCH", 1)
-            ret = self.search_transaction(msg[KeyType.transaction_id])
-            msg[KeyType.infra_command] = DataHandler.RESPONSE_SEARCH
-            if ret is None or len(ret) == 0:
-                msg[KeyType.result] = False
-                msg[KeyType.reason] = "Not found"
-            else:
-                msg[KeyType.result] = True
-                msg[KeyType.transaction_data] = ret[0][1]
-            self.networking.send_message_in_network(nodeinfo=None, payload_type=PayloadType.Type_any,
-                                                    domain_id=self.domain_id, msg=msg)
-
-        elif msg[KeyType.infra_command] == DataHandler.RESPONSE_SEARCH:
-            self.stats.update_stats_increment("data_handler", "RESPONSE_SEARCH", 1)
-            if msg[KeyType.result]:
-                self.insert_transaction(msg[KeyType.transaction_data])
-
-        elif msg[KeyType.infra_command] == DataHandler.NOTIFY_INSERTED:
-            self.stats.update_stats_increment("data_handler", "NOTIFY_INSERTED", 1)
-            if KeyType.transaction_id not in msg or KeyType.asset_group_ids not in msg:
-                return
-            transaction_id = msg[KeyType.transaction_id]
-            asset_group_ids = msg[KeyType.asset_group_ids]
-            self.core.send_inserted_notification(self.domain_id, asset_group_ids, transaction_id,
-                                                 only_registered_user=True)
-
-        elif msg[KeyType.infra_command] == DataHandler.REPAIR_TRANSACTION_DATA:
-            self.networking.domains[self.domain_id]['repair'].put_message(msg)
 
 
 class DbAdaptor:

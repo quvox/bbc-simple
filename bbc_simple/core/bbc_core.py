@@ -19,10 +19,8 @@ from gevent.socket import wait_read
 import gevent
 import os
 import signal
-import hashlib
 import binascii
 import traceback
-import json
 import copy
 from argparse import ArgumentParser
 
@@ -95,7 +93,6 @@ class BBcCoreService:
         self.ipv6 = ipv6
         self.logger.debug("config = %s" % conf)
         self.test_tx_obj = BBcTransaction()
-        self.insert_notification_user_list = dict()
         self.networking = bbc_network.BBcNetwork(self.config, core=self)
         for domain_id_str in conf['domains'].keys():
             domain_id = bbclib.convert_idstring_to_bytes(domain_id_str)
@@ -345,10 +342,10 @@ class BBcCoreService:
             return True, None
 
         elif cmd == MsgType.REQUEST_INSERT_NOTIFICATION:
-            self._register_to_notification_list(domain_id, dat[KeyType.asset_group_id], dat[KeyType.source_user_id])
+            umr.register_notification(dat[KeyType.asset_group_id], dat[KeyType.source_user_id])
 
         elif cmd == MsgType.CANCEL_INSERT_NOTIFICATION:
-            self.remove_from_notification_list(domain_id, dat[KeyType.asset_group_id], dat[KeyType.source_user_id])
+            umr.unregister_notification(dat[KeyType.asset_group_id], dat[KeyType.source_user_id])
 
         elif cmd == MsgType.REQUEST_GET_STATS:
             retmsg = _make_message_structure(domain_id, MsgType.RESPONSE_GET_STATS,
@@ -394,14 +391,14 @@ class BBcCoreService:
             retmsg = _make_message_structure(domain_id, MsgType.RESPONSE_GET_NOTIFICATION_LIST,
                                              dat[KeyType.source_user_id], dat[KeyType.query_id])
             data = bytearray()
-            if domain_id not in self.insert_notification_user_list:
-                data.extend(to_2byte(0))
+            if umr is None or isinstance(umr, user_message_routing.UserMessageRoutingDummy):
+                retmsg[KeyType.result] = EINVALID_COMMAND
             else:
-                data.extend(to_2byte(len(self.insert_notification_user_list[domain_id])))
-                for asset_group_id in self.insert_notification_user_list[domain_id].keys():
+                data.extend(to_2byte(len(umr.insert_notification_list)))
+                for asset_group_id in umr.insert_notification_list.keys():
                     data.extend(asset_group_id)
-                    data.extend(to_2byte(len(self.insert_notification_user_list[domain_id][asset_group_id])))
-                    for user_id in self.insert_notification_user_list[domain_id][asset_group_id]:
+                    data.extend(to_2byte(len(umr.insert_notification_list[asset_group_id])))
+                    for user_id in umr.insert_notification_list[asset_group_id]:
                         data.extend(user_id)
             retmsg[KeyType.notification_list] = bytes(data)
             user_message_routing.direct_send_to_user(socket, retmsg)
@@ -429,55 +426,6 @@ class BBcCoreService:
         else:
             self.logger.error("Bad command/response: %s" % cmd)
         return False, None
-
-    def _register_to_notification_list(self, domain_id, asset_group_id, user_id):
-        """Register user_id in insert completion notification list
-
-        Args:
-            domain_id (bytes): target domain_id
-            asset_group_id (bytes): target asset_group_id of which you want to get notification about the insertion
-            user_id (bytes): user_id that registers in the list
-        """
-        self.insert_notification_user_list.setdefault(domain_id, dict())
-        self.insert_notification_user_list[domain_id].setdefault(asset_group_id, set())
-        self.insert_notification_user_list[domain_id][asset_group_id].add(user_id)
-        umr = self.networking.domains[domain_id]['user']
-        umr.send_multicast_join(asset_group_id, permanent=True)
-
-    def remove_from_notification_list(self, domain_id, asset_group_id, user_id):
-        """Remove entry from insert completion notification list
-
-        This method checks validation only.
-
-        Args:
-            domain_id (bytes): target domain_id
-            asset_group_id (bytes): target asset_group_id of which you want to get notification about the insertion
-            user_id (bytes): user_id that registers in the list
-        """
-        if domain_id not in self.insert_notification_user_list:
-            return
-        if asset_group_id is not None:
-            if asset_group_id in self.insert_notification_user_list[domain_id]:
-                self._remove_notification_entry(domain_id, asset_group_id, user_id)
-        else:
-            for asset_group_id in list(self.insert_notification_user_list[domain_id]):
-                self._remove_notification_entry(domain_id, asset_group_id, user_id)
-
-    def _remove_notification_entry(self, domain_id, asset_group_id, user_id):
-        """Remove entry from insert completion notification list
-
-        Args:
-            domain_id (bytes): target domain_id
-            asset_group_id (bytes): target asset_group_id of which you want to get notification about the insertion
-            user_id (bytes): user_id that registers in the list
-        """
-        self.insert_notification_user_list[domain_id][asset_group_id].remove(user_id)
-        if len(self.insert_notification_user_list[domain_id][asset_group_id]) == 0:
-            self.insert_notification_user_list[domain_id].pop(asset_group_id, None)
-            umr = self.networking.domains[domain_id]['user']
-            umr.send_multicast_leave(asset_group_id)
-        if len(self.insert_notification_user_list[domain_id]) == 0:
-            self.insert_notification_user_list.pop(domain_id, None)
 
     def validate_transaction(self, txdata):
         """Validate transaction by verifying signature
@@ -532,41 +480,23 @@ class BBcCoreService:
 
         return {KeyType.transaction_id: txobj.transaction_id}
 
-    def send_inserted_notification(self, domain_id, asset_group_ids, transaction_id, only_registered_user=False):
+    def send_inserted_notification(self, domain_id, asset_group_ids, transaction_id):
         """Broadcast NOTIFY_INSERTED
 
         Args:
             domain_id (bytes): target domain_id
             asset_group_ids (list): list of asset_group_ids
             transaction_id (bytes): transaction_id that has just inserted
-            only_registered_user (bool): If True, notification is not sent to other nodes
         """
-        umr = self.networking.domains[domain_id]['user']
-        destination_users = set()
-        destination_nodes = set()
+        msg = bytearray()
+        msg.extend(int(len(transaction_id)).to_bytes(1, 'big'))
+        msg.extend(int(len(domain_id)).to_bytes(1, 'big'))
+        msg.extend(transaction_id)
+        msg.extend(domain_id)
+        msg.extend(int(len(asset_group_ids)).to_bytes(1, 'big'))
         for asset_group_id in asset_group_ids:
-            if domain_id in self.insert_notification_user_list:
-                if asset_group_id in self.insert_notification_user_list[domain_id]:
-                    for user_id in self.insert_notification_user_list[domain_id][asset_group_id]:
-                        destination_users.add(user_id)
-
-        if len(destination_users) == 0 and len(destination_nodes) == 0:
-            return
-        msg = {
-            KeyType.domain_id: domain_id,
-            KeyType.infra_command: data_handler.DataHandler.NOTIFY_INSERTED,
-            KeyType.command: MsgType.NOTIFY_INSERTED,
-            KeyType.transaction_id: transaction_id,
-        }
-        for user_id in destination_users:
-            msg[KeyType.destination_user_id] = user_id
-            if not umr.send_message_to_user(msg=msg, direct_only=True):
-                self.remove_from_notification_list(domain_id, None, user_id)
-
-        msg[KeyType.infra_msg_type] = InfraMessageCategory.CATEGORY_DATA
-        for node_id in destination_nodes:   # TODO: need test (multiple asset_groups are bundled)
-            msg[KeyType.destination_node_id] = node_id
-            self.networking.send_message_in_network(domain_id=domain_id, msg=msg)
+            msg.extend(asset_group_id)
+        self.networking.broadcast_notification_message(domain_id=domain_id, msg=bytes(msg))
 
     def _distribute_transaction_to_gather_signatures(self, domain_id, dat):
         """Request to distribute sign_request to users

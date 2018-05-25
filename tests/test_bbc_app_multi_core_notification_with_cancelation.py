@@ -84,48 +84,31 @@ class TestBBcAppClient(object):
         time.sleep(1)
         for i in range(4):
             assert clients[i]['app'].request_insert_completion_notification(asset_group_id)
-        time.sleep(2)
-
-        for i in range(core_num):
-            fe = cores[i].networking.domains[domain_id]['user'].forwarding_entries
-            assert asset_group_id in fe
-            print(fe[asset_group_id]['nodes'])
-            num = len(fe[asset_group_id]['nodes'])
-            if i in [0, 1]:  # core0 and core1 have forwarding entry for core1 and core0, respectively.
-                assert num == 1
-            else:
-                assert num == 2
+            time.sleep(0.2)
+            clients[i]['app'].get_notification_list()
+            dat = msg_processor[i].synchronize(timeout=3)
+            assert len(dat) > 0
+            print(dat)
 
     def test_12_cancel_notification(self):
         print("\n-----", sys._getframe().f_code.co_name, "-----")
         clients[0]['app'].cancel_insert_completion_notification(asset_group_id)
         clients[2]['app'].cancel_insert_completion_notification(asset_group_id)
         time.sleep(1)
-
-        for i in range(core_num):
-            fe = cores[i].networking.domains[domain_id]['user'].forwarding_entries
-            assert asset_group_id in fe
-            print(fe[asset_group_id]['nodes'])
-            num = len(fe[asset_group_id]['nodes'])
-            if i in [0, 1]:  # core0 and core1 have forwarding entry for core1 and core0, respectively.
-                assert num == 1
-            else:
-                assert num == 2
+        clients[0]['app'].get_notification_list()
+        dat = msg_processor[0].synchronize(timeout=3)
+        assert len(dat) == 1
+        clients[2]['app'].get_notification_list()
+        dat = msg_processor[2].synchronize(timeout=3)
+        assert len(dat) == 1
 
     def test_13_cancel_notification(self):
         print("\n-----", sys._getframe().f_code.co_name, "-----")
         clients[1]['app'].cancel_insert_completion_notification(asset_group_id)
         time.sleep(1)
-
-        for i in range(core_num):
-            fe = cores[i].networking.domains[domain_id]['user'].forwarding_entries
-            if i == 1:  # core1 has no forwarding entry because all clients in core0 canceled multicast forwarding
-                assert asset_group_id not in fe
-            else:
-                assert asset_group_id in fe
-                print(fe[asset_group_id]['nodes'])
-                num = len(fe[asset_group_id]['nodes'])
-                assert num == 1
+        clients[0]['app'].get_notification_list()
+        dat = msg_processor[0].synchronize(timeout=3)
+        assert len(dat) == 0
 
 
 if __name__ == '__main__':

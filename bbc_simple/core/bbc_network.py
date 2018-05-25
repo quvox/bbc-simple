@@ -135,20 +135,36 @@ class BBcNetwork:
         self.logger.info("Domain %s is removed" % (domain_id.hex()))
         return True
 
-    def send_message_in_network(self, domain_id=None, dst_user_id=None, msg=None):
+    def send_message_in_network(self, domain_id, dst_user_id, msg):
         """Send message to another user
 
         Args:
             domain_id (bytes): target domain_id
             dst_user_id (bytes): target user_id
             msg (dict): message to send
-        Returns:
-            bool: True if successful
         """
-        dat = message_key_types.make_message(PayloadType.Type_msgpack, msg)
-        if not self.redis_msg.exists(dst_user_id):
-            self.redis_msg.lpush(dst_user_id, bytes(dat))
-            self.redis_msg.expire(dst_user_id, MSG_EXPIRE_SECONDS)
+        dat = bytes(message_key_types.make_message(PayloadType.Type_msgpack, msg))
+        dst_info = bytearray(int(0).to_bytes(1, 'big'))
+        dst_info.extend(int(len(dst_user_id)).to_bytes(1, 'big'))
+        dst_info.extend(int(len(domain_id)).to_bytes(1, 'big'))
+        dst_info.extend(dst_user_id)
+        dst_info.extend(domain_id)
+        dst_info = bytes(dst_info)
+        if not self.redis_msg.exists(dst_info):
+            self.redis_msg.lpush(dst_info, dat)
+            self.redis_msg.expire(dst_info, MSG_EXPIRE_SECONDS)
         else:
-            self.redis_msg.lpush(dst_user_id, bytes(dat))
-        self.redis_pubsub.publish(domain_id, dst_user_id)
+            self.redis_msg.lpush(dst_info, dat)
+        self.redis_pubsub.publish(domain_id, dst_info)
+
+    def broadcast_notification_message(self, domain_id, msg):
+        """Send notification message to users
+
+        Args:
+            domain_id (bytes): target domain_id
+            msg (bytes): message to broadcast
+        """
+        dst_info = bytearray(int(1).to_bytes(1, 'big'))
+        dst_info.extend(msg)
+        dst_info = bytes(dst_info)
+        self.redis_pubsub.publish(domain_id, dst_info)
