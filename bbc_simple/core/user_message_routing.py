@@ -90,17 +90,51 @@ class UserMessageRouting:
         if len(self.insert_notification_list[asset_group_id]) == 0:
             del self.insert_notification_list[asset_group_id]
 
-    def send_message_to_user(self, msg, direct_only=False):
+    def put_message(self, msg=None):
+        """append a message to the queue"""
+        self.queue.put(msg)
+
+    def get_stored_messages(self, src_user_id, query_id):
+        """send back all stored messages
+
+        Args:
+            src_user_id (bytes): user_id of requesting user
+            query_id (bytes): query_id (synchronous response) or None (asynchronous response)
+        """
+        socks = self.registered_users.get(src_user_id, None)
+        if socks is None:
+            return
+        dst_info = bytearray(int(0).to_bytes(1, 'big'))
+        dst_info.extend(int(len(src_user_id)).to_bytes(1, 'big'))
+        dst_info.extend(int(len(self.domain_id)).to_bytes(1, 'big'))
+        dst_info.extend(src_user_id)
+        dst_info.extend(self.domain_id)
+        dst_info = bytes(dst_info)
+        if query_id is None:
+            while self.networking.redis_msg.llen(dst_info) > 0:
+                dat = self.networking.redis_msg.lpop(dst_info)
+                self._send(socks, dat, no_make=True)
+        else:
+            messages = list()
+            while self.networking.redis_msg.llen(dst_info) > 0:
+                dat = self.networking.redis_msg.lpop(dst_info)
+                messages.append(dat)
+            msg = {
+                KeyType.domain_id: self.domain_id,
+                KeyType.destination_user_id: src_user_id,
+                KeyType.command: bbclib.MsgType.RESPONSE_GET_STORED_MESSAGES,
+                KeyType.bulk_messages: messages,
+            }
+            self._send(socks, msg)
+
+    def send_message_to_user(self, msg):
         """Forward message to connecting user
 
         Args:
             msg (dict): message to send
-            direct_only (bool): If True, _forward_message_to_another_node is not called.
         """
         socks = self.registered_users.get(msg[KeyType.destination_user_id], None)
         if socks is None:
-            if direct_only:
-                return False
             self.networking.send_message_in_network(domain_id=self.domain_id,
                                                     dst_user_id=msg[KeyType.destination_user_id], msg=msg)
             return True
@@ -120,10 +154,6 @@ class UserMessageRouting:
                 count -= 1
         return count > 0
 
-    def put_message(self, msg=None):
-        """append a message to the queue"""
-        self.queue.put(msg)
-
     def _message_loop(self):
         """message loop for users"""
         while True:
@@ -138,7 +168,7 @@ class UserMessageRouting:
                 socks = self.registered_users.get(dst_user_id, None)
                 if socks is None:
                     continue
-                self._process_msg_queue(socks, dst_info, dst_user_id)
+                self._process_msg_queue(socks, dst_info)
             elif dst_info[0] == 1:
                 transaction_id = dst_info[3:3+int(dst_info[1])]
                 domain_id = dst_info[3+int(dst_info[1]):3+int(dst_info[1])+int(dst_info[2])]
@@ -147,13 +177,13 @@ class UserMessageRouting:
                     continue
                 self._send_notification(transaction_id, dat)
 
-    def _process_msg_queue(self, socks, dst_info, dst_user_id):
+    def _process_msg_queue(self, socks, dst_info):
         cnt = 3
         while cnt > 0 and self.networking.redis_msg.llen(dst_info) > 0:
             dat = self.networking.redis_msg.lpop(dst_info)
             self.stats.update_stats_increment("user_message", "send_to_user", 1)
             self._send(socks, dat, no_make=True)
-            self.networking.redis_msg.expire(dst_user_id, bbc_network.MSG_EXPIRE_SECONDS)
+            self.networking.redis_msg.expire(dst_info, bbc_network.MSG_EXPIRE_SECONDS)
             cnt -= 1
 
     def _send_notification(self, transaction_id, dat):
@@ -193,5 +223,8 @@ class UserMessageRoutingDummy(UserMessageRouting):
     def put_message(self, msg=None):
         pass
 
-    def send_message_to_user(self, msg, direct_only=False):
+    def get_stored_messages(self, src_user_id, query_id):
+        pass
+
+    def send_message_to_user(self, msg):
         pass

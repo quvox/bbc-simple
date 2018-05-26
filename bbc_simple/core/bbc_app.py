@@ -12,6 +12,7 @@ import traceback
 import queue
 import hashlib
 import bson
+import msgpack
 
 import sys
 sys.path.append("../../")
@@ -467,6 +468,26 @@ class BBcAppClient:
         self.include_admin_info(dat, admin_info, None)
         return self._send_msg(dat)
 
+    def get_stored_messages(self, user_id=None, async=False):
+        """Get statistics of bbc_core
+
+        Args:
+            user_id (bytes): user_id of the client
+            async (bool): True if asynchronous response is required
+        Returns:
+            bytes: query_id
+        """
+        if user_id is None:
+            if self.user_id is not None:
+                user_id = self.user_id
+        if user_id is None:
+            self.logger.error("user_id is not specified")
+            return None
+        dat = self._make_message_structure(MsgType.REQUEST_GET_STORED_MESSAGES)
+        if async:
+            dat[KeyType.request_async] = True
+        return self._send_msg(dat)
+
     def send_message(self, msg, dst_user_id, is_anycast=False):
         """Send a message to the specified user_id
 
@@ -576,6 +597,8 @@ class Callback:
             self.proc_resp_domain_setup(dat)
         elif dat[KeyType.command] == MsgType.RESPONSE_CLOSE_DOMAIN:
             self.proc_resp_domain_close(dat)
+        elif dat[KeyType.command] == MsgType.RESPONSE_GET_STORED_MESSAGES:
+            self.proc_resp_get_stored_message(dat)
         else:
             self.logger.warn("No method to process for command=%d" % dat[KeyType.command])
 
@@ -805,3 +828,20 @@ class Callback:
             dat (dict): received message
         """
         self.queue.put(dat)
+
+    def proc_resp_get_stored_message(self, dat):
+        """Callback for message RESPONSE_GET_STATS
+
+        This method should be overridden if you want to process the message asynchronously.
+
+        Args:
+            dat (dict): received message
+        """
+        if KeyType.bulk_messages not in dat:
+            self.queue.put(dat)
+        else:
+            msg_list = list()
+            for dat2 in dat[KeyType.bulk_messages]:
+                msg_list.append(msgpack.unpackb(dat2[8:]))
+            dat[KeyType.bulk_messages] = msg_list
+            self.queue.put(dat)

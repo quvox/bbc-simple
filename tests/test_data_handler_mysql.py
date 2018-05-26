@@ -55,7 +55,7 @@ class TestDataHandler(object):
 
     def test_01_setup(self):
         print("\n-----", sys._getframe().f_code.co_name, "-----")
-        prepare_db()
+        #prepare_db()
         global data_handler
         dummycore = DummyCore()
         conf = config["domains"][bbclib.convert_id_to_string(domain_id)]

@@ -218,6 +218,8 @@ class KeyType:
     is_anycast = to_4byte(25)
     anycast_ttl = to_4byte(26)
     is_replication = to_4byte(27)
+    request_async = to_4byte(28)
+    is_stored_message = to_4byte(29)
 
     static_entry = to_4byte(0, 0x30)
     ipv4_address = to_4byte(1, 0x30)
@@ -233,6 +235,7 @@ class KeyType:
     neighbor_list = to_4byte(10, 0x30)
     notification_list = to_4byte(11, 0x30)
     bbc_configuration = to_4byte(12, 0x30)
+    bulk_messages = to_4byte(13, 0x30)
 
     domain_id = to_4byte(0, 0x50)
     source_user_id = to_4byte(1, 0x50)

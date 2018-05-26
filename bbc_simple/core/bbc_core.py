@@ -423,6 +423,12 @@ class BBcCoreService:
                 retmsg[KeyType.reason] = "No such domain"
             user_message_routing.direct_send_to_user(socket, retmsg)
 
+        elif cmd == MsgType.REQUEST_GET_STORED_MESSAGES:
+            qid = dat[KeyType.query_id]
+            if KeyType.request_async in dat:
+                qid = None
+            umr.get_stored_messages(dat[KeyType.source_user_id], qid)
+
         else:
             self.logger.error("Bad command/response: %s" % cmd)
         return False, None
