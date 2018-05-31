@@ -2,7 +2,6 @@
 import pytest
 
 import requests
-import binascii
 import threading
 import time
 import shutil
@@ -10,9 +9,6 @@ import shutil
 import sys
 sys.path.extend(["../"])
 from bbc_simple.core import bbclib
-from bbc_simple.core.message_key_types import KeyType
-from bbc_simple.core.bbc_error import *
-from bbc_simple.core import bbc_app
 from testutils import prepare, start_core_thread
 import bbc_simple.app.bbc_admin_app_rest as bbc_rest
 

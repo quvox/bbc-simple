@@ -15,6 +15,7 @@ from testutils import prepare, get_core_client, start_core_thread, make_client, 
 LOGLEVEL = 'debug'
 LOGLEVEL = 'info'
 
+
 core_num = 1
 client_num = 1
 cores = None
@@ -98,7 +99,7 @@ class TestBBcAppClient(object):
     def test_07_search_asset0(self):
         print("\n-----", sys._getframe().f_code.co_name, "-----")
         asid = transactions[0].events[0].asset.asset_id
-        print(" search for asset:%s"%binascii.b2a_hex(asid))
+        print(" search for asset:%s" % binascii.b2a_hex(asid))
         clients[0]['app'].search_transaction_with_condition(asset_group_id=asset_group_id, asset_id=asid)
         dat = wait_check_result_msg_type(msg_processor[0], bbclib.MsgType.RESPONSE_SEARCH_WITH_CONDITIONS)
         assert dat[KeyType.status] == ESUCCESS

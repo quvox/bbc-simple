@@ -19,11 +19,11 @@ client_num = 3
 cores = None
 clients = None
 domain_id = bbclib.get_new_id("testdomain")
-asset_group_id = bbclib.get_new_id("asset_group_1")
+asset_group_id = bbclib.get_new_id("asset_group_1")[:bbclib.DEFAULT_ID_LEN]
 transaction = None
 txid = None
-user_id1 = bbclib.get_new_id("destination_id_test1")
-txid1 = bbclib.get_new_id("dummy_txid_1")
+user_id1 = bbclib.get_new_id("destination_id_test1")[:bbclib.DEFAULT_ID_LEN]
+txid1 = bbclib.get_new_id("dummy_txid_1")[:bbclib.DEFAULT_ID_LEN]
 
 result_queue = queue.Queue()
 keypair = bbclib.KeyPair()

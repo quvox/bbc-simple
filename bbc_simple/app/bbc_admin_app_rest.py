@@ -4,23 +4,16 @@ Copyright (c) 2017 quvox.net
 
 This code is based on that in bbc-1 (https://github.com/beyond-blockchain/bbc1.git)
 """
-import gevent
-from gevent import monkey
-monkey.patch_all()
-from gevent import socket
-import traceback
 import binascii
-import hashlib
-import bson
 import os
 import subprocess
-import ast
+from gevent import monkey
+monkey.patch_all()
 
 import sys
 sys.path.append("../../")
-from argparse import ArgumentParser
 
-from bbc_simple.core import bbc_app, bbclib
+from bbc_simple.core import bbc_app
 from bbc_simple.core.message_key_types import KeyType
 from bbc_simple.logger.fluent_logger import get_fluent_logger
 

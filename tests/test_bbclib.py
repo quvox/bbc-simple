@@ -8,10 +8,12 @@ from bbc_simple.core.bbclib import BBcTransaction, BBcEvent, BBcReference, BBcWi
     BBcCrossRef, KeyPair, KeyType
 from bbc_simple.core import bbclib
 
-user_id = bbclib.get_new_id("user_id_test1")
-user_id2 = bbclib.get_new_id("user_id_test2")
-domain_id = bbclib.get_new_id("testdomain")
-asset_group_id = bbclib.get_new_id("asset_group_1")
+ID_LENGTH = 8
+
+user_id = bbclib.get_new_id("user_id_test1")[:ID_LENGTH]
+user_id2 = bbclib.get_new_id("user_id_test2")[:ID_LENGTH]
+domain_id = bbclib.get_new_id("testdomain")[:ID_LENGTH]
+asset_group_id = bbclib.get_new_id("asset_group_1")[:ID_LENGTH]
 transaction1_id = bbclib.get_new_id("transaction_1")
 transaction2_id = bbclib.get_new_id("transaction_2")
 keypair1 = KeyPair()
@@ -44,15 +46,15 @@ class TestBBcLib(object):
     def test_01_asset(self):
         print("\n-----", sys._getframe().f_code.co_name, "-----")
         global asset1, asset2
-        asset1 = BBcAsset(user_id=user_id, asset_body=b'12345678')
-        asset2 = BBcAsset(user_id=user_id, asset_file=asset_content)
+        asset1 = BBcAsset(id_length=ID_LENGTH, user_id=user_id, asset_body=b'12345678')
+        asset2 = BBcAsset(id_length=ID_LENGTH, user_id=user_id, asset_file=asset_content)
 
         # --- for checking serialization function ---
         digest = asset1.digest()
         dat = asset1.serialize()
         print("Digest:", binascii.b2a_hex(digest))
         print("Serialized data:", binascii.b2a_hex(dat))
-        asset_tmp = BBcAsset()
+        asset_tmp = BBcAsset(id_length=ID_LENGTH)
         asset_tmp.deserialize(dat)
         print("body_len:", asset_tmp.asset_body_size)
         if asset_tmp.asset_body_size > 0:
@@ -63,15 +65,15 @@ class TestBBcLib(object):
         print("\n-----", sys._getframe().f_code.co_name, "-----")
         print("asset_group_id:", binascii.b2a_hex(asset_group_id))
         global event1, event2
-        event1 = BBcEvent(asset_group_id=asset_group_id)
+        event1 = BBcEvent(asset_group_id=asset_group_id, id_length=ID_LENGTH)
         event1.add(asset=asset1, mandatory_approver=user_id)
-        event2 = BBcEvent(asset_group_id=asset_group_id)
+        event2 = BBcEvent(asset_group_id=asset_group_id, id_length=ID_LENGTH)
         event2.add(asset=asset2, mandatory_approver=user_id)
 
         # --- for checking serialization function ---
         dat = event1.serialize()
         print("Serialized data:", binascii.b2a_hex(dat))
-        event_tmp = BBcEvent()
+        event_tmp = BBcEvent(id_length=ID_LENGTH)
         event_tmp.deserialize(dat)
         print("mandatory_approvers:", [binascii.b2a_hex(d) for d in event_tmp.mandatory_approvers])
         print("asset_id:", binascii.b2a_hex(event_tmp.asset.asset_id))
@@ -79,13 +81,13 @@ class TestBBcLib(object):
     def test_03_transaction_1(self):
         print("\n-----", sys._getframe().f_code.co_name, "-----")
         global transaction1
-        transaction1 = BBcTransaction()
+        transaction1 = BBcTransaction(id_length=ID_LENGTH)
         transaction1.add(event=[event1, event2])
         dummy_cross_ref1 = BBcCrossRef(domain_id=domain_id, transaction_id=transaction1_id)
         transaction1.add(cross_ref=dummy_cross_ref1)
         dummy_cross_ref2 = BBcCrossRef(domain_id=domain_id, transaction_id=transaction2_id)
         transaction1.add(cross_ref=dummy_cross_ref2)
-        witness = BBcWitness()
+        witness = BBcWitness(id_length=ID_LENGTH)
         transaction1.add(witness=witness)
 
         sig = transaction1.sign(key_type=KeyType.ECDSA_SECP256k1, private_key=keypair1.private_key,
@@ -101,9 +103,10 @@ class TestBBcLib(object):
         print("Digest:", binascii.b2a_hex(digest))
         print("Serialized data:", binascii.b2a_hex(dat))
 
-        transaction_tmp = BBcTransaction()
+        transaction_tmp = BBcTransaction(id_length=ID_LENGTH)
         transaction_tmp.deserialize(dat)
         transaction1 = transaction_tmp
+        print(transaction1)
         #transaction1.events[1].asset.add(asset_file=asset_content)
         print("transaction_id:", binascii.b2a_hex(transaction1.transaction_id))
         print("transaction_id (recalc2):", binascii.b2a_hex(transaction1.digest()))
@@ -113,21 +116,21 @@ class TestBBcLib(object):
         print("asset_id2:", binascii.b2a_hex(asset_tmp.asset_id))
         print(" --> asset_file_size:", asset_tmp.asset_file_size)
         print(" --> asset_file_digest:", binascii.b2a_hex(asset_tmp.asset_file_digest))
-        ret = asset_tmp.recover_asset_file(asset_content)
+        ret = asset_tmp.recover_asset_file(asset_content, id_length=ID_LENGTH)
         assert ret
         print(" --> asset_file (after recover):", asset_tmp.asset_file)
 
     def test_04_transaction_with_reference(self):
         print("\n-----", sys._getframe().f_code.co_name, "-----")
         global transaction2, event3, asset3
-        asset3 = BBcAsset()
+        asset3 = BBcAsset(id_length=ID_LENGTH)
         asset3.add(asset_body=b'bbbbbbb', user_id=user_id)
         event3 = BBcEvent(asset_group_id=asset_group_id)
         event3.add(asset=asset3, option_approver_num_numerator=1, option_approver_num_denominator=2)
         event3.add(option_approver=user_id)
         event3.add(option_approver=user_id2)
 
-        transaction2 = BBcTransaction()
+        transaction2 = BBcTransaction(id_length=ID_LENGTH)
         transaction2.add(event=event3)
         reference2 = BBcReference(asset_group_id=asset_group_id,
                                   transaction=transaction2, ref_transaction=transaction1, event_index_in_ref=0)
@@ -146,7 +149,7 @@ class TestBBcLib(object):
 
     def test_05_transaction_with_reference2(self):
         print("\n-----", sys._getframe().f_code.co_name, "-----")
-        asset1 = BBcAsset()
+        asset1 = BBcAsset(id_length=ID_LENGTH)
         asset1.add(user_id=user_id, asset_body=b'ccccc')
         event = BBcEvent(asset_group_id=asset_group_id)
         event.add(asset=asset1, option_approver_num_numerator=1, option_approver_num_denominator=2)
@@ -154,7 +157,7 @@ class TestBBcLib(object):
         event.add(option_approver=user_id2)
 
         global transaction1
-        transaction1 = BBcTransaction()
+        transaction1 = BBcTransaction(id_length=ID_LENGTH)
         transaction1.add(event=event)
         reference = BBcReference(asset_group_id=asset_group_id,
                                  transaction=transaction1, ref_transaction=transaction2, event_index_in_ref=0)
@@ -182,7 +185,7 @@ class TestBBcLib(object):
         witness = BBcWitness()
 
         global transaction1
-        transaction1 = BBcTransaction()
+        transaction1 = BBcTransaction(id_length=ID_LENGTH)
         transaction1.add(witness=witness)
 
         witness.add_witness(user_id)
@@ -206,7 +209,7 @@ class TestBBcLib(object):
 
     def test_06_transaction_with_relation_and_witness(self):
         print("\n-----", sys._getframe().f_code.co_name, "-----")
-        transaction1 = bbclib.make_transaction(relation_num=1, witness=True)
+        transaction1 = bbclib.make_transaction(relation_num=1, witness=True, id_length=8)
         bbclib.add_relation_asset(transaction1, relation_idx=0, asset_group_id=asset_group_id,
                                   user_id=user_id, asset_body=b'ccccc')
         bbclib.add_relation_pointer(transaction1, 0, ref_transaction_id=transaction2.digest())

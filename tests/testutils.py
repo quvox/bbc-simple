@@ -66,12 +66,13 @@ def domain_setup_utility(core_port_increment, dom_id):
     cl.unregister_from_core()
 
 
-def make_client(index, core_port_increment, callback=None, connect_to_core=True, domain_id=None):
+def make_client(index, core_port_increment, callback=None, connect_to_core=True, domain_id=None, id_length=bbclib.DEFAULT_ID_LEN):
     keypair = bbclib.KeyPair()
     keypair.generate()
-    clients[index]['user_id'] = bbclib.get_new_id("user_%i" % index)
+    clients[index]['user_id'] = bbclib.get_new_id("user_%i" % index)[:id_length]
     clients[index]['keypair'] = keypair
-    clients[index]['app'] = bbc_app.BBcAppClient(port=DEFAULT_CORE_PORT + core_port_increment, multiq=False)
+    clients[index]['app'] = bbc_app.BBcAppClient(port=DEFAULT_CORE_PORT + core_port_increment, multiq=False,
+                                                 id_length=id_length)
     if connect_to_core:
         if domain_id is None:
             global common_domain_id

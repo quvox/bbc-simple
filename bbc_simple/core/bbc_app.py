@@ -25,6 +25,7 @@ from bbc_simple.core.bbc_error import *
 from bbc_simple.logger.fluent_logger import get_fluent_logger
 
 DEFAULT_CORE_PORT = 9000
+DEFAULT_ID_LEN = 32
 
 MESSAGE_WITH_NO_RESPONSE = (MsgType.MESSAGE, MsgType.REGISTER, MsgType.UNREGISTER, MsgType.DOMAIN_PING,
                             MsgType.REQUEST_INSERT_NOTIFICATION, MsgType.CANCEL_INSERT_NOTIFICATION,
@@ -71,7 +72,7 @@ def parse_two_level_dict(dat):
 
 class BBcAppClient:
     """Basic functions for a client of bbc_core"""
-    def __init__(self, host='127.0.0.1', port=DEFAULT_CORE_PORT, multiq=True):
+    def __init__(self, host='127.0.0.1', port=DEFAULT_CORE_PORT, multiq=True, id_length=DEFAULT_ID_LEN):
         self.logger = get_fluent_logger(name="bbc_app")
         self.connection = socket.create_connection((host, port))
         self.callback = Callback(log=self.logger)
@@ -80,6 +81,7 @@ class BBcAppClient:
         self.user_id = None
         self.domain_id = None
         self.query_id = (0).to_bytes(2, 'little')
+        self.id_length = id_length
         self.start_receiver_loop()
 
     def set_callback(self, callback_obj):
@@ -106,7 +108,7 @@ class BBcAppClient:
         Args:
             identifier (bytes): user_id of this clients
         """
-        self.user_id = identifier
+        self.user_id = identifier[:self.id_length]
 
     def include_admin_info(self, dat, admin_info, keypair):
         if keypair is not None:
@@ -127,10 +129,13 @@ class BBcAppClient:
             if self.use_query_id_based_message_wait:
                 if self.query_id not in self.callback.query_queue:
                     self.callback.create_queue(self.query_id)
+        user_id = None
+        if self.user_id is not None:
+            user_id = self.user_id[:self.id_length]
         msg = {
             KeyType.command: cmd,
             KeyType.domain_id: self.domain_id,
-            KeyType.source_user_id: self.user_id,
+            KeyType.source_user_id: user_id,
             KeyType.query_id: self.query_id,
             KeyType.status: ESUCCESS,
         }
@@ -294,7 +299,7 @@ class BBcAppClient:
             bytes: query_id
         """
         dat = self._make_message_structure(MsgType.REQUEST_INSERT_NOTIFICATION)
-        dat[KeyType.asset_group_id] = asset_group_id
+        dat[KeyType.asset_group_id] = asset_group_id[:self.id_length]
         return self._send_msg(dat)
 
     def cancel_insert_completion_notification(self, asset_group_id):
@@ -306,7 +311,7 @@ class BBcAppClient:
             bytes: query_id
         """
         dat = self._make_message_structure(MsgType.CANCEL_INSERT_NOTIFICATION)
-        dat[KeyType.asset_group_id] = asset_group_id
+        dat[KeyType.asset_group_id] = asset_group_id[:self.id_length]
         return self._send_msg(dat)
 
     def gather_signatures(self, txobj, reference_obj=None, destinations=None, anycast=False):
@@ -334,7 +339,7 @@ class BBcAppClient:
             if len(referred_transactions) > 0:
                 dat[KeyType.transactions] = referred_transactions
         elif destinations is not None:
-            dat[KeyType.destination_user_ids] = destinations
+            dat[KeyType.destination_user_ids] = [dst[:self.id_length] for dst in destinations]
         return self._send_msg(dat)
 
     def sendback_signature(self, dest_user_id=None, transaction_id=None, ref_index=-1, signature=None, query_id=None):
@@ -352,8 +357,8 @@ class BBcAppClient:
             bytes: query_id
         """
         dat = self._make_message_structure(MsgType.RESPONSE_SIGNATURE)
-        dat[KeyType.destination_user_id] = dest_user_id
-        dat[KeyType.transaction_id] = transaction_id
+        dat[KeyType.destination_user_id] = dest_user_id[:self.id_length]
+        dat[KeyType.transaction_id] = transaction_id[:self.id_length]
         dat[KeyType.ref_index] = ref_index
         if signature.format_type in [bbclib.BBcFormat.FORMAT_BSON, bbclib.BBcFormat.FORMAT_BSON_COMPRESS_BZ2]:
             dat[KeyType.signature] = bson.dumps(signature.serialize())
@@ -379,8 +384,8 @@ class BBcAppClient:
             bytes: query_id
         """
         dat = self._make_message_structure(MsgType.RESPONSE_SIGNATURE)
-        dat[KeyType.destination_user_id] = dest_user_id
-        dat[KeyType.transaction_id] = transaction_id
+        dat[KeyType.destination_user_id] = dest_user_id[:self.id_length]
+        dat[KeyType.transaction_id] = transaction_id[:self.id_length]
         dat[KeyType.status] = EOTHER
         dat[KeyType.reason] = reason_text
         if query_id is not None:
@@ -416,11 +421,11 @@ class BBcAppClient:
         """
         dat = self._make_message_structure(MsgType.REQUEST_SEARCH_WITH_CONDITIONS)
         if asset_group_id is not None:
-            dat[KeyType.asset_group_id] = asset_group_id
+            dat[KeyType.asset_group_id] = asset_group_id[:self.id_length]
         if asset_id is not None:
-            dat[KeyType.asset_id] = asset_id
+            dat[KeyType.asset_id] = asset_id[:self.id_length]
         if user_id is not None:
-            dat[KeyType.user_id] = user_id
+            dat[KeyType.user_id] = user_id[:self.id_length]
         dat[KeyType.count] = count
         return self._send_msg(dat)
 
@@ -433,7 +438,7 @@ class BBcAppClient:
             bytes: query_id
         """
         dat = self._make_message_structure(MsgType.REQUEST_SEARCH_TRANSACTION)
-        dat[KeyType.transaction_id] = transaction_id
+        dat[KeyType.transaction_id] = transaction_id[:self.id_length]
         return self._send_msg(dat)
 
     def traverse_transactions(self, transaction_id, direction=1, hop_count=3):
@@ -450,7 +455,7 @@ class BBcAppClient:
             bytes: query_id
         """
         dat = self._make_message_structure(MsgType.REQUEST_TRAVERSE_TRANSACTIONS)
-        dat[KeyType.transaction_id] = transaction_id
+        dat[KeyType.transaction_id] = transaction_id[:self.id_length]
         dat[KeyType.direction] = direction
         dat[KeyType.hop_count] = hop_count
         return self._send_msg(dat)
@@ -479,8 +484,8 @@ class BBcAppClient:
         """
         if user_id is None:
             if self.user_id is not None:
-                user_id = self.user_id
-        if user_id is None:
+                self.user_id = user_id[:self.id_length]
+        if self.user_id is None:
             self.logger.error("user_id is not specified")
             return None
         dat = self._make_message_structure(MsgType.REQUEST_GET_STORED_MESSAGES)
@@ -499,7 +504,7 @@ class BBcAppClient:
             bytes: query_id
         """
         dat = self._make_message_structure(MsgType.MESSAGE)
-        dat[KeyType.destination_user_id] = dst_user_id
+        dat[KeyType.destination_user_id] = dst_user_id[:self.id_length]
         dat[KeyType.message] = msg
         if is_anycast:
             dat[KeyType.is_anycast] = True
