@@ -324,12 +324,16 @@ def verify_using_cross_ref(domain_id, transaction_id, transaction_base_digest, c
 
 class KeyType:
     ECDSA_SECP256k1 = 1
+    ECDSA_P256v1 = 2
+
+
+DEFAULT_CURVETYPE = KeyType.ECDSA_P256v1
 
 
 class KeyPair:
     """Key pair container"""
-    def __init__(self, type=KeyType.ECDSA_SECP256k1, privkey=None, pubkey=None):
-        self.type = type
+    def __init__(self, curvetype=DEFAULT_CURVETYPE, privkey=None, pubkey=None):
+        self.curvetype = curvetype
         self.private_key_len = c_int32(32)
         self.private_key = (c_byte * self.private_key_len.value)()
         self.public_key_len = c_int32(65)
@@ -345,9 +349,8 @@ class KeyPair:
 
     def generate(self):
         """Generate a new key pair"""
-        if self.type == KeyType.ECDSA_SECP256k1:
-            libbbcsig.generate_keypair(0, byref(self.public_key_len), self.public_key,
-                                       byref(self.private_key_len), self.private_key)
+        libbbcsig.generate_keypair(self.curvetype, 0, byref(self.public_key_len), self.public_key,
+                                   byref(self.private_key_len), self.private_key)
 
     def mk_keyobj_from_private_key(self):
         """Make a keypair object from the binary data of private key"""
@@ -355,7 +358,7 @@ class KeyPair:
             return
         if self.type != KeyType.ECDSA_SECP256k1:
             return
-        libbbcsig.get_public_key_uncompressed(self.private_key_len, self.private_key,
+        libbbcsig.get_public_key_uncompressed(self.curvetype, self.private_key_len, self.private_key,
                                               byref(self.public_key_len), self.public_key)
 
     def mk_keyobj_from_private_key_der(self, derdat):
@@ -363,13 +366,13 @@ class KeyPair:
         der_len = len(derdat)
         der_data = (c_byte * der_len)()
         memmove(der_data, bytes(derdat), der_len)
-        libbbcsig.convert_from_der(der_len, byref(der_data), 0,
+        libbbcsig.convert_from_der(self.curvetype, der_len, byref(der_data), 0,
                                    byref(self.public_key_len), self.public_key,
                                    byref(self.private_key_len), self.private_key)
 
     def mk_keyobj_from_private_key_pem(self, pemdat_string):
         """Make a keypair object from the private key in PEM format"""
-        libbbcsig.convert_from_pem(create_string_buffer(pemdat_string.encode()), 0,
+        libbbcsig.convert_from_pem(self.curvetype, create_string_buffer(pemdat_string.encode()), 0,
                                    byref(self.public_key_len), self.public_key,
                                    byref(self.private_key_len), self.private_key)
 
@@ -390,13 +393,13 @@ class KeyPair:
     def get_private_key_in_der(self):
         """Return private key in DER format"""
         der_data = (c_byte * 512)()     # 256 -> 512
-        der_len = libbbcsig.output_der(self.private_key_len, self.private_key, byref(der_data))
+        der_len = libbbcsig.output_der(self.curvetype, self.private_key_len, self.private_key, byref(der_data))
         return bytes(bytearray(der_data)[:der_len])
 
     def get_private_key_in_pem(self):
         """Return private key in PEM format"""
         pem_data = (c_char * 512)()     # 256 -> 512
-        pem_len = libbbcsig.output_pem(self.private_key_len, self.private_key, byref(pem_data))
+        pem_len = libbbcsig.output_pem(self.curvetype, self.private_key_len, self.private_key, byref(pem_data))
         return pem_data.value
 
     def sign(self, digest):
@@ -407,31 +410,28 @@ class KeyPair:
         Returns:
             bytes: signature
         """
-        if self.type == KeyType.ECDSA_SECP256k1:
-            sig_r = (c_byte * 32)()
-            sig_s = (c_byte * 32)()
-            sig_r_len = (c_byte * 4)()  # Adjust size according to the expected size of sig_r and sig_s. Default:uint32.
-            sig_s_len = (c_byte * 4)()
-            libbbcsig.sign(self.private_key_len, self.private_key, len(digest), digest, sig_r, sig_s, sig_r_len, sig_s_len)
-            sig_r_len = int.from_bytes(bytes(sig_r_len), "little")
-            sig_s_len = int.from_bytes(bytes(sig_s_len), "little")
-            sig_r = binascii.a2b_hex("00"*(32-sig_r_len) + bytes(sig_r)[:sig_r_len].hex())
-            sig_s = binascii.a2b_hex("00"*(32-sig_s_len) + bytes(sig_s)[:sig_s_len].hex())
-            return bytes(bytearray(sig_r)+bytearray(sig_s))
-        else:
-            set_error(code=EOTHER, txt="sig_type %d is not supported" % self.type)
-            return None
+        sig_r = (c_byte * 32)()
+        sig_s = (c_byte * 32)()
+        sig_r_len = (c_byte * 4)()  # Adjust size according to the expected size of sig_r and sig_s. Default:uint32.
+        sig_s_len = (c_byte * 4)()
+        libbbcsig.sign(self.curvetype, self.private_key_len, self.private_key, len(digest), digest,
+                       sig_r, sig_s, sig_r_len, sig_s_len)
+        sig_r_len = int.from_bytes(bytes(sig_r_len), "little")
+        sig_s_len = int.from_bytes(bytes(sig_s_len), "little")
+        sig_r = binascii.a2b_hex("00"*(32-sig_r_len) + bytes(sig_r)[:sig_r_len].hex())
+        sig_s = binascii.a2b_hex("00"*(32-sig_s_len) + bytes(sig_s)[:sig_s_len].hex())
+        return bytes(bytearray(sig_r)+bytearray(sig_s))
 
     def verify(self, digest, sig):
         """Verify the digest and the signature using the rivate key in this object"""
-        return libbbcsig.verify(self.public_key_len, self.public_key, len(digest), digest, len(sig), sig)
+        return libbbcsig.verify(self.curvetype, self.public_key_len, self.public_key, len(digest), digest, len(sig), sig)
 
 
 class BBcSignature:
     """Signature part in a transaction"""
-    def __init__(self, key_type=KeyType.ECDSA_SECP256k1, deserialize=None, format_type=BBcFormat.FORMAT_BINARY):
+    def __init__(self, key_type=DEFAULT_CURVETYPE, deserialize=None, format_type=BBcFormat.FORMAT_BINARY):
         self.format_type = format_type
-        self.type = key_type
+        self.key_type = key_type
         self.signature = None
         self.pubkey = None
         self.keypair = None
@@ -444,11 +444,11 @@ class BBcSignature:
             self.signature = signature
         if pubkey is not None:
             self.pubkey = pubkey
-            self.keypair = KeyPair(type=self.type, pubkey=pubkey)
+            self.keypair = KeyPair(curvetype=self.key_type, pubkey=pubkey)
         return True
 
     def __str__(self):
-        ret =  "  type: %d\n" % self.type
+        ret =  "  key_type: %d\n" % self.key_type
         ret += "  signature: %s\n" % binascii.b2a_hex(self.signature)
         ret += "  pubkey: %s\n" % binascii.b2a_hex(self.pubkey)
         return ret
@@ -457,7 +457,7 @@ class BBcSignature:
         """Serialize this object"""
         if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2]:
             return self.serialize_bson()
-        dat = bytearray(to_4byte(self.type))
+        dat = bytearray(to_4byte(self.key_type))
         pubkey_len_bit = len(self.pubkey) * 8
         dat.extend(to_4byte(pubkey_len_bit))
         dat.extend(self.pubkey)
@@ -478,7 +478,7 @@ class BBcSignature:
             return self.deserialize_bson(data)
         ptr = 0
         try:
-            ptr, self.type = get_n_byte_int(ptr, 4, data)
+            ptr, self.key_type = get_n_byte_int(ptr, 4, data)
             ptr, pubkey_len_bit = get_n_byte_int(ptr, 4, data)
             pubkey_len = int(pubkey_len_bit/8)
             ptr, pubkey = get_n_bytes(ptr, pubkey_len, data)
@@ -495,6 +495,7 @@ class BBcSignature:
         pubkey_len_bit = len(self.pubkey) * 8
         sig_len_bit = len(self.signature) * 8
         return {
+            'key_type': self.key_type,
             'pubkey_len': pubkey_len_bit,
             'pubkey': bytes(self.pubkey),
             'signature_len': sig_len_bit,
@@ -510,6 +511,7 @@ class BBcSignature:
             bool: True if successful
         """
         try:
+            self.key_type = bson_data['key_type']
             pubkey = bson_data['pubkey']
             signature = bson_data['signature']
             self.add(signature=signature, pubkey=pubkey)
@@ -909,11 +911,11 @@ class BBcTransaction:
         self.digest()
         return True
 
-    def sign(self, key_type=KeyType.ECDSA_SECP256k1, private_key=None, public_key=None, keypair=None):
+    def sign(self, key_type=DEFAULT_CURVETYPE, private_key=None, public_key=None, keypair=None):
         """Sign the transaction
 
         Args:
-            key_type (int): Type of encryption key algorighm (currently, KeyType.ECDSA_SECP256k1 only)
+            key_type (int): Type of encryption key's curve
             private_key (bytes):
             public_key (bytes):
             keypair (KeyPair): keypair or set of private_key and public_key needs to be given
@@ -921,22 +923,19 @@ class BBcTransaction:
             BBcSignature:
         """
         reset_error()
-        if key_type != KeyType.ECDSA_SECP256k1:
-            set_error(code=EBADKEYPAIR, txt="Not support other than ECDSA_SECP256k1")
-            return None
         if keypair is None:
             if len(private_key) != 32 or len(public_key) <= 32:
                 set_error(code=EBADKEYPAIR, txt="Bad private_key/public_key (must be in bytes format)")
                 return None
-            keypair = KeyPair(type=key_type, privkey=private_key, pubkey=public_key)
+            keypair = KeyPair(curvetype=key_type, privkey=private_key, pubkey=public_key)
             if keypair is None:
                 set_error(code=EBADKEYPAIR, txt="Bad private_key/public_key")
                 return None
 
-        sig = BBcSignature(key_type=keypair.type, format_type=self.format_type)
+        sig = BBcSignature(key_type=keypair.curvetype, format_type=self.format_type)
         s = keypair.sign(self.digest())
         if s is None:
-            set_error(code=EOTHER, txt="sig_type %d is not supported" % keypair.type)
+            set_error(code=EOTHER, txt="sig_type %d is not supported" % keypair.curvetype)
             return None
         sig.add(signature=s, pubkey=keypair.public_key)
         return sig

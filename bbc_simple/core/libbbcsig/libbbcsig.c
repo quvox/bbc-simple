@@ -37,15 +37,26 @@
 
 #include <crypto/ec/ec_lcl.h>
 
+#define CURVE_TYPE_SECP256  1
+#define CURVE_TYPE_P256     2
+
+
 VS_DLL_EXPORT
-bool VS_STDCALL sign(int privkey_len, uint8_t *privkey, int hash_len, uint8_t *hash, uint8_t *sig_r, uint8_t *sig_t, uint32_t *sig_r_len, uint32_t *sig_s_len)
+bool VS_STDCALL sign(int curvetype, int privkey_len, uint8_t *privkey, int hash_len, uint8_t *hash, uint8_t *sig_r, uint8_t *sig_t, uint32_t *sig_r_len, uint32_t *sig_s_len)
 {
     BN_CTX *ctx = BN_CTX_new();
     EC_KEY *eckey = EC_KEY_new();
     if (NULL == eckey) {
         return false;
     }
-    EC_GROUP *ecgroup = EC_GROUP_new_by_curve_name(NID_secp256k1);
+    EC_GROUP *ecgroup;
+    if (curvetype == CURVE_TYPE_SECP256) {
+        ecgroup = EC_GROUP_new_by_curve_name(NID_secp256k1);
+    } else if (curvetype == CURVE_TYPE_P256) {
+        ecgroup = EC_GROUP_new_by_curve_name(NID_X9_62_prime256v1);
+    } else {
+        return false;
+    }
     if (NULL == ecgroup) {
         EC_KEY_free(eckey);
         return false;
@@ -76,7 +87,7 @@ bool VS_STDCALL sign(int privkey_len, uint8_t *privkey, int hash_len, uint8_t *h
 }
 
 VS_DLL_EXPORT
-int VS_STDCALL verify(int point_len, const uint8_t *point,
+int VS_STDCALL verify(int curvetype, int point_len, const uint8_t *point,
            int hash_len,uint8_t *hash,
            int sig_len, const uint8_t *sig)
 {
@@ -85,7 +96,14 @@ int VS_STDCALL verify(int point_len, const uint8_t *point,
     if (NULL == eckey) {
         return false;
     }
-    EC_GROUP *ecgroup = EC_GROUP_new_by_curve_name(NID_secp256k1);
+    EC_GROUP *ecgroup;
+    if (curvetype == CURVE_TYPE_SECP256) {
+        ecgroup = EC_GROUP_new_by_curve_name(NID_secp256k1);
+    } else if (curvetype == CURVE_TYPE_P256) {
+        ecgroup = EC_GROUP_new_by_curve_name(NID_X9_62_prime256v1);
+    } else {
+        return false;
+    }
     if (NULL == ecgroup) {
         EC_KEY_free(eckey);
         return false;
@@ -117,7 +135,7 @@ int VS_STDCALL verify(int point_len, const uint8_t *point,
 }
 
 VS_DLL_EXPORT
-bool VS_STDCALL generate_keypair(uint8_t pubkey_type, int *pubkey_len, uint8_t *pubkey,
+bool VS_STDCALL generate_keypair(int curvetype, uint8_t pubkey_type, int *pubkey_len, uint8_t *pubkey,
                       int *privkey_len, uint8_t *privkey)
 {
     BN_CTX *ctx = BN_CTX_new();
@@ -160,14 +178,21 @@ bool VS_STDCALL generate_keypair(uint8_t pubkey_type, int *pubkey_len, uint8_t *
 }
 
 VS_DLL_EXPORT
-bool VS_STDCALL get_public_key_uncompressed(int privkey_len, uint8_t *privkey, int *pubkey_len, uint8_t *pubkey)
+bool VS_STDCALL get_public_key_uncompressed(int curvetype, int privkey_len, uint8_t *privkey, int *pubkey_len, uint8_t *pubkey)
 {
     BN_CTX *ctx = BN_CTX_new();
     EC_KEY *eckey = EC_KEY_new();
     if (NULL == eckey) {
         return false;
     }
-    EC_GROUP *ecgroup = EC_GROUP_new_by_curve_name(NID_secp256k1);
+    EC_GROUP *ecgroup;
+    if (curvetype == CURVE_TYPE_SECP256) {
+        ecgroup = EC_GROUP_new_by_curve_name(NID_secp256k1);
+    } else if (curvetype == CURVE_TYPE_P256) {
+        ecgroup = EC_GROUP_new_by_curve_name(NID_X9_62_prime256v1);
+    } else {
+        return false;
+    }
     if (NULL == ecgroup) {
         EC_KEY_free(eckey);
         return false;
@@ -195,7 +220,7 @@ bool VS_STDCALL get_public_key_uncompressed(int privkey_len, uint8_t *privkey, i
 }
 
 VS_DLL_EXPORT
-bool VS_STDCALL get_public_key_compressed(int privkey_len, uint8_t *privkey, int *pubkey_len, uint8_t *pubkey)
+bool VS_STDCALL get_public_key_compressed(int curvetype, int privkey_len, uint8_t *privkey, int *pubkey_len, uint8_t *pubkey)
 {
     BN_CTX *ctx = BN_CTX_new();
     EC_KEY *eckey = EC_KEY_new();
@@ -230,7 +255,7 @@ bool VS_STDCALL get_public_key_compressed(int privkey_len, uint8_t *privkey, int
 }
 
 VS_DLL_EXPORT
-bool VS_STDCALL convert_from_der(long der_len, const unsigned char *der,
+bool VS_STDCALL convert_from_der(int curvetype, long der_len, const unsigned char *der,
                       uint8_t pubkey_type,
                       int *pubkey_len, uint8_t *pubkey,
                       int *privkey_len, uint8_t *privkey)
@@ -240,7 +265,14 @@ bool VS_STDCALL convert_from_der(long der_len, const unsigned char *der,
     if (NULL == eckey) {
         return false;
     }
-    EC_GROUP *ecgroup = EC_GROUP_new_by_curve_name(NID_secp256k1);
+    EC_GROUP *ecgroup;
+    if (curvetype == CURVE_TYPE_SECP256) {
+        ecgroup = EC_GROUP_new_by_curve_name(NID_secp256k1);
+    } else if (curvetype == CURVE_TYPE_P256) {
+        ecgroup = EC_GROUP_new_by_curve_name(NID_X9_62_prime256v1);
+    } else {
+        return false;
+    }
     if (NULL == ecgroup) {
         EC_KEY_free(eckey);
         return false;
@@ -281,7 +313,7 @@ bool VS_STDCALL convert_from_der(long der_len, const unsigned char *der,
 }
 
 VS_DLL_EXPORT
-bool VS_STDCALL convert_from_pem(const char *pem,
+bool VS_STDCALL convert_from_pem(int curvetype, const char *pem,
                       uint8_t pubkey_type,
                       int *pubkey_len, uint8_t *pubkey,
                       int *privkey_len, uint8_t *privkey)
@@ -300,7 +332,14 @@ bool VS_STDCALL convert_from_pem(const char *pem,
     if (NULL == eckey) {
         return false;
     }
-    EC_GROUP *ecgroup = EC_GROUP_new_by_curve_name(NID_secp256k1);
+    EC_GROUP *ecgroup;
+    if (curvetype == CURVE_TYPE_SECP256) {
+        ecgroup = EC_GROUP_new_by_curve_name(NID_secp256k1);
+    } else if (curvetype == CURVE_TYPE_P256) {
+        ecgroup = EC_GROUP_new_by_curve_name(NID_X9_62_prime256v1);
+    } else {
+        return false;
+    }
     if (NULL == ecgroup) {
         EC_KEY_free(eckey);
         return false;
@@ -336,14 +375,21 @@ bool VS_STDCALL convert_from_pem(const char *pem,
 }
 
 VS_DLL_EXPORT
-int VS_STDCALL output_der(int privkey_len, uint8_t *privkey, uint8_t *der_out)
+int VS_STDCALL output_der(int curvetype, int privkey_len, uint8_t *privkey, uint8_t *der_out)
 {
     BN_CTX *ctx = BN_CTX_new();
     EC_KEY *eckey = EC_KEY_new();
     if (NULL == eckey) {
         return 0;
     }
-    EC_GROUP *ecgroup = EC_GROUP_new_by_curve_name(NID_secp256k1);
+    EC_GROUP *ecgroup;
+    if (curvetype == CURVE_TYPE_SECP256) {
+        ecgroup = EC_GROUP_new_by_curve_name(NID_secp256k1);
+    } else if (curvetype == CURVE_TYPE_P256) {
+        ecgroup = EC_GROUP_new_by_curve_name(NID_X9_62_prime256v1);
+    } else {
+        return false;
+    }
     if (NULL == ecgroup) {
         EC_KEY_free(eckey);
         return 0;
@@ -372,14 +418,21 @@ int VS_STDCALL output_der(int privkey_len, uint8_t *privkey, uint8_t *der_out)
 }
 
 VS_DLL_EXPORT
-int VS_STDCALL output_pem(int privkey_len, uint8_t *privkey, uint8_t *pem_out)
+int VS_STDCALL output_pem(int curvetype, int privkey_len, uint8_t *privkey, uint8_t *pem_out)
 {
     BN_CTX *ctx = BN_CTX_new();
     EC_KEY *eckey = EC_KEY_new();
     if (NULL == eckey) {
         return 0;
     }
-    EC_GROUP *ecgroup = EC_GROUP_new_by_curve_name(NID_secp256k1);
+    EC_GROUP *ecgroup;
+    if (curvetype == CURVE_TYPE_SECP256) {
+        ecgroup = EC_GROUP_new_by_curve_name(NID_secp256k1);
+    } else if (curvetype == CURVE_TYPE_P256) {
+        ecgroup = EC_GROUP_new_by_curve_name(NID_X9_62_prime256v1);
+    } else {
+        return false;
+    }
     if (NULL == ecgroup) {
         EC_KEY_free(eckey);
         return 0;
