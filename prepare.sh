@@ -5,6 +5,6 @@ cd third_party/openssl
 git checkout f70425d3ac5e4ef17cfa116d99f8f03bbac1c7f2
 ./config && make
 
-cd bbc_simple/core/libbbcsig
+cd ../../bbc_simple/core/libbbcsig
 make clean
 make
