@@ -811,7 +811,7 @@ class BBcTransaction:
             return False
         return True
 
-    def serialize_bson(self, for_id=False):
+    def serialize_bson(self, for_id=False, no_header=False):
         """Serialize the whole parts"""
         if self.witness is not None:
             witness = self.witness.serialize_bson()
@@ -852,6 +852,8 @@ class BBcTransaction:
             })
         if self.format_type == BBcFormat.FORMAT_BSON_COMPRESS_BZ2:
             dat = bz2.compress(dat)
+        if no_header:
+            return dat
         self.transaction_data = bytes(to_2byte(self.format_type) + dat)
         return self.transaction_data
 

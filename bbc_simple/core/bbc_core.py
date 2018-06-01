@@ -278,7 +278,7 @@ class BBcCoreService:
                 return False, None
             if not self._distribute_transaction_to_gather_signatures(dat[KeyType.domain_id], dat):
                 retmsg = _make_message_structure(domain_id, MsgType.RESPONSE_GATHER_SIGNATURE,
-                                                dat[KeyType.source_user_id], dat[KeyType.query_id])
+                                                 dat[KeyType.source_user_id], dat[KeyType.query_id])
                 if not self._error_reply(msg=retmsg, err_code=EINVALID_COMMAND, txt="Fail to forward transaction"):
                     user_message_routing.direct_send_to_user(socket, retmsg)
 
@@ -288,7 +288,7 @@ class BBcCoreService:
                 return False, None
             transaction_data = dat[KeyType.transaction_data]
             retmsg = _make_message_structure(domain_id, MsgType.RESPONSE_INSERT,
-                                            dat[KeyType.source_user_id], dat[KeyType.query_id])
+                                             dat[KeyType.source_user_id], dat[KeyType.query_id])
             ret = self.insert_transaction(dat[KeyType.domain_id], transaction_data)
             if isinstance(ret, str):
                 if not self._error_reply(msg=retmsg, err_code=EINVALID_COMMAND, txt=ret):
