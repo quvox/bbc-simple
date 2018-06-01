@@ -26,6 +26,8 @@ Simple version of BBc-1
   * core-client間は、RESTサーバとクライアント間をSSLで接続すれば暗号化可能
 * 管理用utilityを廃止した
   * ほとんど必要なくなったため
+* 暗号鍵(ECC)の対応アルゴリズムを拡充(ECDSA_P256v1)
+
 
 # 実行環境
 
