@@ -32,6 +32,18 @@ CORS(http)
 flog = get_fluent_logger(name="bbc_app_rest")
 
 
+def get_id_binary(jsondata, keystr):
+    idstr = jsondata.get(keystr, None)
+    if idstr is None:
+        return None
+    return binascii.a2b_hex(idstr)
+
+
+def get_encoded_bson_txobj(txdat):
+    txobj = bbclib.BBcTransaction(deserialize=txdat, format_type=bbclib.BBcFormat.FORMAT_BSON)
+    return base64.b64encode(txobj.serialize_bson(no_header=True)).decode()
+
+
 def crossdomain(origin=None, methods=None, headers=None,
                 max_age=21600, attach_to_all=True,
                 automatic_options=True):
@@ -150,8 +162,8 @@ def insert_transaction(domain_id_str=None):
     try:
         domain_id = binascii.a2b_hex(domain_id_str)
         bbcapp.set_domain_id(domain_id)
-        user_id = binascii.a2b_hex(json_data.get('user_id', None))
-        bbcapp.set_user_id(user_id)
+        source_user_id = get_id_binary(json_data, 'source_user_id')
+        bbcapp.set_user_id(source_user_id)
         bbcapp.register_to_core()
     except:
         return jsonify({'error': 'invalid request'}), 500
@@ -166,7 +178,7 @@ def insert_transaction(domain_id_str=None):
     msg = {'result': 'success',
            'transaction_id': retmsg[KeyType.transaction_id].hex()}
     flog.debug(msg)
-    return jsonify({'message': msg}), 200
+    return jsonify(msg), 200
 
 
 @http.route('/search_transaction/<domain_id_str>', methods=['POST', 'OPTIONS'])
@@ -176,46 +188,107 @@ def search_transaction(domain_id_str=None):
     try:
         domain_id = binascii.a2b_hex(domain_id_str)
         bbcapp.set_domain_id(domain_id)
-        user_id = binascii.a2b_hex(json_data.get('user_id', None))
-        bbcapp.set_user_id(user_id)
+        source_user_id = get_id_binary(json_data, 'source_user_id')
+        bbcapp.set_user_id(source_user_id)
         bbcapp.register_to_core()
-        txid = binascii.a2b_hex(json_data.get('transaction_id', None))
+        txid = get_id_binary(json_data, 'transaction_id')
     except:
         return jsonify({'error': 'invalid request'}), 500
     qid = bbcapp.search_transaction(txid)
     retmsg = bbcapp.callback.sync_by_queryid(qid, timeout=5)
     if retmsg is None:
         return jsonify({'error': 'No response'}), 400
+
     bbcapp.unregister_from_core()
-    txobj = bbclib.BBcTransaction(deserialize=retmsg[KeyType.transaction_data],
-                                  format_type=bbclib.BBcFormat.FORMAT_BSON)
-    txbson = txobj.serialize_bson(no_header=True)
+
     msg = {'result': 'success',
-           'transaction_bson': base64.b64encode(txbson).decode()}
+           'transaction_bson': get_encoded_bson_txobj(retmsg[KeyType.transaction_data])}
     flog.debug(msg)
     return jsonify(msg), 200
 
 
-@http.route('/search_transaction_with_condition', methods=['POST', 'OPTIONS'])
+@http.route('/search_transaction_with_condition/<domain_id_str>', methods=['POST', 'OPTIONS'])
 @crossdomain(origin='*', headers=['Content-Type'])
-def search_transaction_with_condition():
+def search_transaction_with_condition(domain_id_str=None):
     json_data = request.json
-    asset_group_id = json_data.get('asset_group_id', None)
-    asset_id = json_data.get('asset_id', None)
-    user_id = json_data.get('user_id', None)
-    flog.debug({'result': 'User registered successfully'})
-    return jsonify({'message': 'User registered successfully'}), 200
+    try:
+        domain_id = binascii.a2b_hex(domain_id_str)
+        bbcapp.set_domain_id(domain_id)
+        source_user_id = get_id_binary(json_data, 'source_user_id')
+        bbcapp.set_user_id(source_user_id)
+        bbcapp.register_to_core()
+        asset_group_id = get_id_binary(json_data, 'asset_group_id')
+        asset_id = get_id_binary(json_data, 'asset_id')
+        user_id = get_id_binary(json_data, 'user_id')
+        count = json_data.get('count', 1)
+    except:
+        return jsonify({'error': 'invalid request'}), 500
+    qid = bbcapp.search_transaction_with_condition(asset_group_id=asset_group_id, asset_id=asset_id,
+                                                   user_id=user_id, count=count)
+    retmsg = bbcapp.callback.sync_by_queryid(qid, timeout=5)
+    if retmsg is None:
+        return jsonify({'error': 'No response'}), 400
+
+    bbcapp.unregister_from_core()
+
+    tx_ok = list()
+    if KeyType.transactions in retmsg:
+        for txdat in retmsg[KeyType.transactions]:
+            tx_ok.append(get_encoded_bson_txobj(txdat))
+    tx_ng = list()
+    if KeyType.compromised_transactions in retmsg:
+        for txdat in retmsg[KeyType.compromised_transactions]:
+            tx_ng.append(get_encoded_bson_txobj(txdat))
+    msg = {'result': 'success',
+           'transaction_bsons': tx_ok,
+           'transaction_compromised_bsons': tx_ng
+           }
+    flog.debug(msg)
+    return jsonify(msg), 200
 
 
-@http.route('/traverse_transactions', methods=['POST', 'OPTIONS'])
+@http.route('/traverse_transactions/<domain_id_str>', methods=['POST', 'OPTIONS'])
 @crossdomain(origin='*', headers=['Content-Type'])
-def traverse_transactions():
+def traverse_transactions(domain_id_str=None):
     json_data = request.json
-    transaction_id = json_data.get('transaction_id', None)
-    direction = json_data.get('direction')
-    hop_count = json_data.get('hop_count')
-    flog.debug({'result': 'User registered successfully'})
-    return jsonify({'message': 'User registered successfully'}), 200
+    try:
+        domain_id = binascii.a2b_hex(domain_id_str)
+        bbcapp.set_domain_id(domain_id)
+        source_user_id = get_id_binary(json_data, 'source_user_id')
+        bbcapp.set_user_id(source_user_id)
+        bbcapp.register_to_core()
+        transaction_id = get_id_binary(json_data, 'transaction_id')
+        asset_group_id = get_id_binary(json_data, 'asset_group_id')
+        user_id = get_id_binary(json_data, 'user_id')
+        direction = json_data.get('direction', 0)
+        hop_count = json_data.get('hop_count', 3)
+    except:
+        return jsonify({'error': 'invalid request'}), 500
+    qid = bbcapp.traverse_transactions(transaction_id=transaction_id, asset_group_id=asset_group_id, user_id=user_id,
+                                       direction=direction, hop_count=hop_count)
+    retmsg = bbcapp.callback.sync_by_queryid(qid, timeout=5)
+    if retmsg is None:
+        return jsonify({'error': 'No response'}), 400
+    elif KeyType.reason in retmsg:
+        msg = {'error': retmsg[KeyType.reason].decode()}
+        flog.debug(msg)
+        return jsonify(msg), 400
+
+    bbcapp.unregister_from_core()
+
+    include_all_flag = retmsg[KeyType.all_included]
+    tx_tree = list()
+    for level in retmsg[KeyType.transaction_tree]:
+        tx_level = list()
+        for txdat in level:
+            tx_level.append(get_encoded_bson_txobj(txdat))
+        tx_tree.append(tx_level)
+    msg = {'result': 'success',
+           'include_all_flag': include_all_flag,
+           'transaction_tree': tx_tree
+           }
+    flog.debug(msg)
+    return jsonify(msg), 200
 
 
 def start_server(host="127.0.0.1", cport=9000, wport=3000):

@@ -441,7 +441,7 @@ class BBcAppClient:
         dat[KeyType.transaction_id] = transaction_id[:self.id_length]
         return self._send_msg(dat)
 
-    def traverse_transactions(self, transaction_id, direction=1, hop_count=3):
+    def traverse_transactions(self, transaction_id, asset_group_id=None, user_id=None, direction=1, hop_count=3):
         """Search request for transactions
 
         The method traverses the transaction graph in the ledger.
@@ -449,6 +449,8 @@ class BBcAppClient:
 
         Args:
             transaction_id (bytes): the target transaction to retrieve
+            asset_group_id (bytes): asset_group_id in BBcEvent and BBcRelations
+            user_id (bytes): user_id in BBcAsset that means the owner of the asset
             direction (int): 1:backforward, non-1:forward
             hop_count (int): hop count to traverse from the specified origin point
         Returns:
@@ -456,6 +458,10 @@ class BBcAppClient:
         """
         dat = self._make_message_structure(MsgType.REQUEST_TRAVERSE_TRANSACTIONS)
         dat[KeyType.transaction_id] = transaction_id[:self.id_length]
+        if asset_group_id is not None:
+            dat[KeyType.asset_group_id] = asset_group_id[:self.id_length]
+        if user_id is not None:
+            dat[KeyType.user_id] = user_id[:self.id_length]
         dat[KeyType.direction] = direction
         dat[KeyType.hop_count] = hop_count
         return self._send_msg(dat)

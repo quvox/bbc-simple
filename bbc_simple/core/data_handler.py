@@ -106,7 +106,7 @@ class DataHandler:
         else:
             return list(ret)
 
-    def _get_asset_info(self, txobj):
+    def get_asset_info(self, txobj):
         """Retrieve asset information from transaction object
 
         Args:
@@ -163,7 +163,7 @@ class DataHandler:
             return None
 
         asset_group_ids = set()
-        for asset_group_id, asset_id, user_id in self._get_asset_info(txobj):
+        for asset_group_id, asset_id, user_id in self.get_asset_info(txobj):
             asset_group_ids.add(asset_group_id)
         return asset_group_ids
 
@@ -184,7 +184,7 @@ class DataHandler:
         if ret is None:
             return False
 
-        for asset_group_id, asset_id, user_id in self._get_asset_info(txobj):
+        for asset_group_id, asset_id, user_id in self.get_asset_info(txobj):
             self.exec_sql(sql="INSERT INTO asset_info_table(transaction_id, asset_group_id, asset_id, user_id) "
                               "VALUES (%s, %s, %s, %s)" % (
                               self.db_adaptor.placeholder, self.db_adaptor.placeholder,
