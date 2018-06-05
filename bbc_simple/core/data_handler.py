@@ -340,9 +340,12 @@ class MysqlAdaptor(DbAdaptor):
                 user="root", password=rootpass, charset='utf8'
             )
             db_cur = db.cursor(buffered=True)
-            db_cur.execute("create database %s" % self.db_name)
-            grant_sql = "GRANT ALL ON %s.* TO '%s'@'%%';" % (self.db_name, self.db_user)
-            db_cur.execute(grant_sql)
+            db_cur.execute("show databases like '%s'" % self.db_name)
+
+            if len(db_cur.fetchall()) == 0:
+                db_cur.execute("create database %s" % self.db_name)
+                grant_sql = "GRANT ALL ON %s.* TO '%s'@'%%';" % (self.db_name, self.db_user)
+                db_cur.execute(grant_sql)
         except Exception as e:
             self.handler.logger.error(e)
         finally:
