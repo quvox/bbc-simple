@@ -96,7 +96,7 @@ def domain_setup():
         return jsonify({'error': 'No response'}), 400
     msg = {'result': retmsg[KeyType.result]}
     if KeyType.reason in retmsg:
-        msg['reason'] = retmsg[KeyType.reason]
+        msg['reason'] = retmsg[KeyType.reason].decode()
     flog.debug({'cmd': 'domain_setup', 'result': retmsg[KeyType.result]})
     return jsonify(msg), 200
 
@@ -114,8 +114,8 @@ def domain_close(domain_id_str=None):
         return jsonify({'error': 'No response'}), 400
     msg = {'result': retmsg[KeyType.result]}
     if KeyType.reason in retmsg:
-        msg['reason'] = retmsg[KeyType.reason]
-    flog.debug({'cmd': 'domain_close', 'result': retmsg[KeyType.result]})
+        msg['reason'] = retmsg[KeyType.reason].decode()
+    flog.debug({'cmd': 'domain_close', 'result': retmsg[KeyType.result].decode()})
     return jsonify(msg), 200
 
 
@@ -343,6 +343,7 @@ if __name__ == '__main__':
         subprocess.call("kill `cat " + PID_FILE + "`", shell=True)
         subprocess.call("rm -f " + PID_FILE, shell=True)
         sys.exit(0)
+    """
     if not os.path.exists(os.path.join(argresult.ssl, "cert1.pem")):
         print("No cert file for SSL is found!")
         sys.exit(0)
@@ -355,6 +356,7 @@ if __name__ == '__main__':
     if not os.path.exists(os.path.join(argresult.token, "server_publickey.pem")):
         print("No public key for token is found!")
         sys.exit(0)
+    """
 
     if argresult.daemon:
         daemonize()
