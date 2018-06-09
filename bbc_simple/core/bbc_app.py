@@ -72,8 +72,12 @@ def parse_two_level_dict(dat):
 
 class BBcAppClient:
     """Basic functions for a client of bbc_core"""
-    def __init__(self, host='127.0.0.1', port=DEFAULT_CORE_PORT, multiq=True, id_length=DEFAULT_ID_LEN):
-        self.logger = get_fluent_logger(name="bbc_app")
+    def __init__(self, host='127.0.0.1', port=DEFAULT_CORE_PORT, multiq=True,
+                 id_length=DEFAULT_ID_LEN, logger=None):
+        if logger is not None:
+            self.logger = logger
+        else:
+            self.logger = get_fluent_logger(name="bbc_app")
         self.connection = socket.create_connection((host, port))
         self.callback = Callback(log=self.logger)
         self.callback.set_client(self)
