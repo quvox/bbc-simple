@@ -246,7 +246,8 @@ class BBcCoreService:
                                                             asset_group_id=dat.get(KeyType.asset_group_id, None),
                                                             asset_id=dat.get(KeyType.asset_id, None),
                                                             user_id=dat.get(KeyType.user_id, None),
-                                                            count=dat.get(KeyType.count, 1))
+                                                            count=dat.get(KeyType.count, 1),
+                                                            direction=dat.get(KeyType.direction, 0))
             if txinfo is None or KeyType.transactions not in txinfo:
                 if not self._error_reply(msg=retmsg, err_code=ENOTRANSACTION, txt="Cannot find transaction"):
                     user_message_routing.direct_send_to_user(socket, retmsg)
@@ -565,7 +566,8 @@ class BBcCoreService:
             del response_info[KeyType.compromised_transactions]
         return response_info
 
-    def search_transaction_with_condition(self, domain_id, asset_group_id=None, asset_id=None, user_id=None, count=1):
+    def search_transaction_with_condition(self, domain_id, asset_group_id=None, asset_id=None, user_id=None,
+                                          direction=0, count=1):
         """Search transactions that match given conditions
 
         When Multiple conditions are given, they are considered as AND condition.
@@ -575,6 +577,7 @@ class BBcCoreService:
             asset_group_id (bytes): asset_group_id that target transactions should have
             asset_id (bytes): asset_id that target transactions should have
             user_id (bytes): user_id that target transactions should have
+            direction (int): 0: descend, 1: ascend
             count (int): The maximum number of transactions to retrieve
         Returns:
             dict: dictionary having transaction_id, serialized transaction data, asset files
@@ -584,15 +587,17 @@ class BBcCoreService:
             return None
 
         dh = self.networking.domains[domain_id]['data']
-        ret_txobj = dh.search_transaction(asset_group_id=asset_group_id, asset_id=asset_id, user_id=user_id, count=count)
+        ret_txobj = dh.search_transaction(asset_group_id=asset_group_id, asset_id=asset_id, user_id=user_id,
+                                          direction=direction, count=count)
         if ret_txobj is None or len(ret_txobj) == 0:
             return None
 
         return _create_search_result(ret_txobj)
 
     def _traverse_transactions(self, domain_id, transaction_id, asset_group_id=None, user_id=None, direction=1, hop_count=3):
-        """Get transaction tree from the specified transaction_id
+        """Get transaction tree from the specified transaction_id and given conditions
 
+        If both asset_group_id and user_id are specified, they are treated as AND condition.
         Transaction tree in the return values are in the following format:
         [ [list of serialized transactions in 1-hop from the base], [list of serialized transactions in 2-hop from the base],,,,
 
@@ -644,8 +649,12 @@ class BBcCoreService:
                 if asset_group_id is not None or user_id is not None:
                     flag = False
                     for asgid, asset_id, uid in dh.get_asset_info(ret_txobj[txid]):
-                        if asgid == asset_group_id or uid == user_id:
-                            flag = True
+                        flag = True
+                        if asset_group_id is not None and asgid != asset_group_id:
+                            flag = False
+                        if user_id is not None and uid != user_id:
+                            flag = False
+                        if flag:
                             break
                     if not flag:
                         continue

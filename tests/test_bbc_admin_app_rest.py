@@ -6,6 +6,7 @@ import threading
 import time
 import shutil
 
+import os
 import sys
 sys.path.extend(["../"])
 from bbc_simple.core import bbclib
@@ -31,7 +32,8 @@ class TestBBcAppClient(object):
 
     def test_00_setup(self):
         print("\n-----", sys._getframe().f_code.co_name, "-----")
-        shutil.rmtree(".bbc1-9000")
+        if os.path.exists(".bbc1-9000"):
+            shutil.rmtree(".bbc1-9000")
         prepare(core_num=core_num, client_num=client_num)
         for i in range(core_num):
             start_core_thread(index=i)

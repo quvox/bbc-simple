@@ -226,7 +226,8 @@ class DataHandler:
                           (self.db_adaptor.placeholder,self.db_adaptor.placeholder),
                           args=(base, point_to), commit=True)
 
-    def search_transaction(self, transaction_id=None, asset_group_id=None, asset_id=None, user_id=None, count=1):
+    def search_transaction(self, transaction_id=None, asset_group_id=None, asset_id=None, user_id=None,
+                           direction=0, count=1):
         """Search transaction data
 
         When Multiple conditions are given, they are considered as AND condition.
@@ -236,6 +237,7 @@ class DataHandler:
             asset_group_id (bytes): asset_group_id that target transactions should have
             asset_id (bytes): asset_id that target transactions should have
             user_id (bytes): user_id that target transactions should have
+            direction (int): 0: descend, 1: ascend
             count (int): The maximum number of transactions to retrieve
         Returns:
             dict: mapping from transaction_id to serialized transaction data
@@ -248,6 +250,9 @@ class DataHandler:
             if len(txinfo) == 0:
                 return None
         else:
+            dire = "DESC"
+            if direction == 1:
+                dire = "ASC"
             sql = "SELECT * from asset_info_table WHERE "
             conditions = list()
             if asset_group_id is not None:
@@ -256,7 +261,7 @@ class DataHandler:
                 conditions.append("asset_id = %s " % self.db_adaptor.placeholder)
             if user_id is not None:
                 conditions.append("user_id = %s " % self.db_adaptor.placeholder)
-            sql += "AND ".join(conditions) + "ORDER BY id DESC"
+            sql += "AND ".join(conditions) + "ORDER BY id %s" % dire
             if count > 0:
                 if count > 20:
                     count = 20
