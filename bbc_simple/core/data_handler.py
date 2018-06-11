@@ -278,6 +278,31 @@ class DataHandler:
             result_txobj[txid] = txobj
         return result_txobj
 
+    def count_transactions(self, asset_group_id=None, asset_id=None, user_id=None):
+        """Count transactions that matches the given conditions
+
+        When Multiple conditions are given, they are considered as AND condition.
+
+        Args:
+            asset_group_id (bytes): asset_group_id that target transactions should have
+            asset_id (bytes): asset_id that target transactions should have
+            user_id (bytes): user_id that target transactions should have
+        Returns:
+            int: the number of transactions
+        """
+        sql = "SELECT count( DISTINCT transaction_id ) from asset_info_table WHERE "
+        conditions = list()
+        if asset_group_id is not None:
+            conditions.append("asset_group_id = %s " % self.db_adaptor.placeholder)
+        if asset_id is not None:
+            conditions.append("asset_id = %s " % self.db_adaptor.placeholder)
+        if user_id is not None:
+            conditions.append("user_id = %s " % self.db_adaptor.placeholder)
+        sql += "AND ".join(conditions)
+        args = list(filter(lambda a: a is not None, (asset_group_id, asset_id, user_id)))
+        ret = self.exec_sql(sql=sql, args=args)
+        return ret[0][0]
+
     def search_transaction_topology(self, transaction_id, traverse_to_past=True):
         """Search in topology info
 
