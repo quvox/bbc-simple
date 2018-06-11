@@ -241,7 +241,7 @@ class BBcCoreService:
                 self.logger.debug("REQUEST_SEARCH_WITH_CONDITIONS: bad format")
                 return False, None
             retmsg = _make_message_structure(domain_id, MsgType.RESPONSE_SEARCH_WITH_CONDITIONS,
-                                            dat[KeyType.source_user_id], dat[KeyType.query_id])
+                                             dat[KeyType.source_user_id], dat[KeyType.query_id])
             txinfo = self.search_transaction_with_condition(domain_id,
                                                             asset_group_id=dat.get(KeyType.asset_group_id, None),
                                                             asset_id=dat.get(KeyType.asset_id, None),
@@ -254,6 +254,18 @@ class BBcCoreService:
             else:
                 retmsg.update(txinfo)
                 umr.send_message_to_user(retmsg)
+
+        elif cmd == MsgType.REQUEST_COUNT_TRANSACTIONS:
+            if not self._param_check([KeyType.domain_id], dat):
+                self.logger.debug("REQUEST_COUNT_TRANSACTIONS: bad format")
+                return False, None
+            retmsg = _make_message_structure(domain_id, MsgType.RESPONSE_COUNT_TRANSACTIONS,
+                                             dat[KeyType.source_user_id], dat[KeyType.query_id])
+            count = self.count_transactions(domain_id, asset_group_id=dat.get(KeyType.asset_group_id, None),
+                                            asset_id=dat.get(KeyType.asset_id, None),
+                                            user_id=dat.get(KeyType.user_id, None))
+            retmsg[KeyType.count] = count
+            umr.send_message_to_user(retmsg)
 
         elif cmd == MsgType.REQUEST_TRAVERSE_TRANSACTIONS:
             if not self._param_check([KeyType.domain_id, KeyType.transaction_id,
@@ -593,6 +605,26 @@ class BBcCoreService:
             return None
 
         return _create_search_result(ret_txobj)
+
+    def count_transactions(self, domain_id, asset_group_id=None, asset_id=None, user_id=None):
+        """Count transactions that match given conditions
+
+        When Multiple conditions are given, they are considered as AND condition.
+
+        Args:
+            domain_id (bytes): target domain_id
+            asset_group_id (bytes): asset_group_id that target transactions should have
+            asset_id (bytes): asset_id that target transactions should have
+            user_id (bytes): user_id that target transactions should have
+        Returns:
+            int: the number of transactions
+        """
+        if domain_id is None:
+            self.logger.error("No such domain")
+            return None
+
+        dh = self.networking.domains[domain_id]['data']
+        return dh.count_transactions(asset_group_id=asset_group_id, asset_id=asset_id, user_id=user_id)
 
     def _traverse_transactions(self, domain_id, transaction_id, asset_group_id=None, user_id=None, direction=1, hop_count=3):
         """Get transaction tree from the specified transaction_id and given conditions

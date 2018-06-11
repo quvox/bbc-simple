@@ -794,7 +794,6 @@ class BBcTransaction:
                 self.witness.transaction = self
                 if not self.witness.deserialize(witnessdata):
                     return False
-                self.witness.transaction = self
 
             ptr, cross_num = get_n_byte_int(ptr, 2, data)
             if cross_num == 0:
@@ -2087,6 +2086,8 @@ class MsgType:
     REQUEST_CROSS_REF_LIST = 92
     RESPONSE_CROSS_REF_LIST = 93
     REQUEST_REPAIR = 94
+    REQUEST_COUNT_TRANSACTIONS = 95
+    RESPONSE_COUNT_TRANSACTIONS = 95
 
     REQUEST_REGISTER_HASH_IN_SUBSYS = 128
     RESPONSE_REGISTER_HASH_IN_SUBSYS = 129
