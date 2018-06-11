@@ -92,7 +92,6 @@ class BBcCoreService:
         conf = self.config.get_config()
         self.ipv6 = ipv6
         self.logger.debug("config = %s" % conf)
-        self.test_tx_obj = BBcTransaction()
         self.networking = bbc_network.BBcNetwork(self.config, core=self)
         for domain_id_str in conf['domains'].keys():
             domain_id = bbclib.convert_idstring_to_bytes(domain_id_str)
