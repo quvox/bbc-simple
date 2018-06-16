@@ -401,6 +401,12 @@ class KeyPair:
         pem_len = libbbcsig.output_pem(self.curvetype, self.private_key_len, self.private_key, byref(pem_data))
         return pem_data.value
 
+    def get_public_key_in_pem(self):
+        """Return public key in PEM format"""
+        pem_data = (c_char * 512)()     # 256 -> 512
+        pem_len = libbbcsig.output_pem(self.curvetype, self.public_key_len, self.public_key, byref(pem_data))
+        return pem_data.value
+
     def sign(self, digest):
         """Sign to the given value
 

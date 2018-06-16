@@ -467,3 +467,90 @@ int VS_STDCALL output_pem(int curvetype, int privkey_len, uint8_t *privkey, uint
     BN_CTX_free(ctx);
     return len;
 }
+
+VS_DLL_EXPORT
+int VS_STDCALL output_public_key_der(int curvetype, int point_len, uint8_t *point, uint8_t *der_out)
+{
+    BN_CTX *ctx = BN_CTX_new();
+    EC_KEY *eckey = EC_KEY_new();
+    if (NULL == eckey) {
+        return 0;
+    }
+    EC_GROUP *ecgroup;
+    if (curvetype == CURVE_TYPE_SECP256) {
+        ecgroup = EC_GROUP_new_by_curve_name(NID_secp256k1);
+    } else if (curvetype == CURVE_TYPE_P256) {
+        ecgroup = EC_GROUP_new_by_curve_name(NID_X9_62_prime256v1);
+    } else {
+        return false;
+    }
+    if (NULL == ecgroup) {
+        EC_KEY_free(eckey);
+        return 0;
+    }
+    if (EC_KEY_set_group(eckey, ecgroup) != 1) {
+        EC_GROUP_free(ecgroup);
+        EC_KEY_free(eckey);
+        return 0;
+    }
+
+    EC_POINT *pubkey_point = EC_POINT_new(ecgroup);
+    EC_POINT_oct2point(ecgroup, pubkey_point, point, point_len, ctx);
+    EC_KEY_set_public_key(eckey, pubkey_point);
+
+    int der_len = i2d_EC_PUBKEY(eckey, &der_out);
+
+    EC_POINT_free(pubkey_point);
+    EC_GROUP_free(ecgroup);
+    EC_KEY_free(eckey);
+    BN_CTX_free(ctx);
+    return der_len;
+}
+
+VS_DLL_EXPORT
+int VS_STDCALL output_public_key_pem(int curvetype, int point_len, uint8_t *point, uint8_t *pem_out)
+{
+    BN_CTX *ctx = BN_CTX_new();
+    EC_KEY *eckey = EC_KEY_new();
+    if (NULL == eckey) {
+        return 0;
+    }
+    EC_GROUP *ecgroup;
+    if (curvetype == CURVE_TYPE_SECP256) {
+        ecgroup = EC_GROUP_new_by_curve_name(NID_secp256k1);
+    } else if (curvetype == CURVE_TYPE_P256) {
+        ecgroup = EC_GROUP_new_by_curve_name(NID_X9_62_prime256v1);
+    } else {
+        return false;
+    }
+    if (NULL == ecgroup) {
+        EC_KEY_free(eckey);
+        return 0;
+    }
+    if (EC_KEY_set_group(eckey, ecgroup) != 1) {
+        EC_GROUP_free(ecgroup);
+        EC_KEY_free(eckey);
+        return 0;
+    }
+
+    EC_POINT *pubkey_point = EC_POINT_new(ecgroup);
+    EC_POINT_oct2point(ecgroup, pubkey_point, point, point_len, ctx);
+    EC_KEY_set_public_key(eckey, pubkey_point);
+
+    BIO *out = BIO_new(BIO_s_mem());
+    BUF_MEM *buf = BUF_MEM_new();
+    memset(pem_out, 0, 512);
+
+    PEM_write_bio_EC_PUBKEY(out, eckey);
+    BIO_get_mem_ptr(out, &buf);
+
+	int len = buf->length;
+    memcpy(pem_out, buf->data, len);
+
+    BIO_free_all(out);
+    EC_POINT_free(pubkey_point);
+    EC_GROUP_free(ecgroup);
+    EC_KEY_free(eckey);
+    BN_CTX_free(ctx);
+    return len;
+}

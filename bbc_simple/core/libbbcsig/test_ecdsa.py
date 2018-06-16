@@ -85,3 +85,16 @@ print("# -- output_pem()")
 pem = (c_char * 512)()      # 256 -> 512
 length = lib.output_pem(CURVETYPE_SECP256, privkey_len, privkey, byref(pem))
 print("PEM: len=", length, " dat=", pem.value)
+
+print("# -- output_publickey_pem()")
+pem = (c_char * 512)()      # 256 -> 512
+print(bytes(pubkey).hex())
+print(pubkey_len)
+length = lib.output_public_key_pem(CURVETYPE_SECP256, pubkey_len, pubkey, byref(pem))
+print("PEM: len=", length, " dat=", pem.value)
+length = lib.output_public_key_der(CURVETYPE_SECP256, pubkey_len, pubkey, byref(pem))
+print("DER: len=", length, " dat=", pem.value)
+length = lib.output_pem(CURVETYPE_SECP256, privkey_len, privkey, byref(pem))
+print("PEM: len=", length, " dat=", pem.value)
+length = lib.output_der(CURVETYPE_SECP256, privkey_len, privkey, byref(pem))
+print("DER: len=", length, " dat=", pem.value)

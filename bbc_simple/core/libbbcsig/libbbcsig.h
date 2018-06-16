@@ -154,4 +154,11 @@ int VS_STDCALL output_der(int curvetype, int privkey_len, uint8_t *privkey, uint
 VS_DLL_EXPORT
 int VS_STDCALL output_pem(int curvetype, int privkey_len, uint8_t *privkey, uint8_t *pem_out);
 
+
+VS_DLL_EXPORT
+int VS_STDCALL output_public_key_der(int curvetype, int point_len, uint8_t *point, uint8_t *der_out);
+
+VS_DLL_EXPORT
+int VS_STDCALL output_public_key_pem(int curvetype, int point_len, uint8_t *point, uint8_t *pem_out);
+
 #endif
