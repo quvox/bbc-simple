@@ -7,7 +7,8 @@ This code is based on that in bbc-1 (https://github.com/beyond-blockchain/bbc1.g
 import gevent
 from gevent import monkey
 monkey.patch_all()
-import bson
+
+import logging
 import base64
 import binascii
 import os
@@ -17,7 +18,7 @@ import sys
 sys.path.append("../../")
 from bbc_simple.core import bbc_app, bbclib
 from bbc_simple.core.message_key_types import KeyType
-from bbc_simple.logger.fluent_logger import get_fluent_logger
+from bbc_simple.logger.fluent_logger import initialize_logger
 
 from argparse import ArgumentParser
 from datetime import timedelta
@@ -29,7 +30,9 @@ PID_FILE = "/tmp/bbc_admin_app_rest.pid"
 
 http = Flask(__name__)
 CORS(http)
-flog = get_fluent_logger(name="bbc_app_rest")
+
+bbcapp = None
+flog = None
 
 
 def get_id_binary(jsondata, keystr):
@@ -115,7 +118,7 @@ def domain_close(domain_id_str=None):
     msg = {'result': retmsg[KeyType.result]}
     if KeyType.reason in retmsg:
         msg['reason'] = retmsg[KeyType.reason].decode()
-    flog.debug({'cmd': 'domain_close', 'result': retmsg[KeyType.result].decode()})
+    flog.debug({'cmd': 'domain_close', 'result': retmsg[KeyType.result]})
     return jsonify(msg), 200
 
 
@@ -291,7 +294,12 @@ def traverse_transactions(domain_id_str=None):
     return jsonify(msg), 200
 
 
-def start_server(host="127.0.0.1", cport=9000, wport=3000):
+def start_server(host="127.0.0.1", cport=9000, wport=3000, log_init=True):
+    if log_init:
+        initialize_logger()
+    global flog
+    flog = logging.getLogger("bbc_app_rest")
+
     global bbcapp
     bbcapp = bbc_app.BBcAppClient(host=host, port=cport)
     #context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)

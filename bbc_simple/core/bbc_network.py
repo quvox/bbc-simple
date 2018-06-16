@@ -16,6 +16,7 @@ limitations under the License.
 """
 import redis
 import threading
+import logging
 import os
 import sys
 sys.path.extend(["../../", os.path.abspath(os.path.dirname(__file__))])
@@ -24,7 +25,6 @@ from bbc_simple.core.data_handler import DataHandler
 from bbc_simple.core import message_key_types
 from bbc_simple.core import bbclib
 from bbc_simple.core.message_key_types import to_2byte, PayloadType
-from bbc_simple.logger.fluent_logger import get_fluent_logger
 
 
 MSG_EXPIRE_SECONDS = 30
@@ -58,7 +58,7 @@ class BBcNetwork:
     def __init__(self, config, core=None):
         self.core = core
         self.stats = core.stats
-        self.logger = get_fluent_logger(name="bbc_network")
+        self.logger = core.logger
         self.config = config
         self.domains = dict()
         self.redis_pubsub = None

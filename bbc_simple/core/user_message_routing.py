@@ -14,7 +14,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-
+import logging
 import threading
 import queue
 import os
@@ -22,7 +22,6 @@ import sys
 sys.path.extend(["../../", os.path.abspath(os.path.dirname(__file__))])
 from bbc_simple.core.message_key_types import PayloadType, KeyType
 from bbc_simple.core import message_key_types, bbc_network, bbclib
-from bbc_simple.logger.fluent_logger import get_fluent_logger
 
 
 def direct_send_to_user(sock, msg):
@@ -35,7 +34,7 @@ class UserMessageRouting:
         self.networking = networking
         self.stats = networking.core.stats
         self.domain_id = domain_id
-        self.logger = get_fluent_logger(name="user_message_routing")
+        self.logger = networking.logger
         self.registered_users = dict()
         self.insert_notification_list = dict()
         self.queue = queue.Queue()

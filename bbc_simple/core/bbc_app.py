@@ -13,6 +13,7 @@ import queue
 import hashlib
 import bson
 import msgpack
+import logging
 
 import sys
 sys.path.append("../../")
@@ -22,7 +23,6 @@ from bbc_simple.core import message_key_types
 from bbc_simple.core.bbclib import MsgType
 from bbc_simple.core.message_key_types import KeyType, PayloadType
 from bbc_simple.core.bbc_error import *
-from bbc_simple.logger.fluent_logger import get_fluent_logger
 
 DEFAULT_CORE_PORT = 9000
 DEFAULT_ID_LEN = 32
@@ -73,13 +73,18 @@ def parse_two_level_dict(dat):
 class BBcAppClient:
     """Basic functions for a client of bbc_core"""
     def __init__(self, host='127.0.0.1', port=DEFAULT_CORE_PORT, multiq=True,
-                 id_length=DEFAULT_ID_LEN, logger=None):
+                 id_length=DEFAULT_ID_LEN, callback=None, logger=None):
         if logger is not None:
             self.logger = logger
         else:
-            self.logger = get_fluent_logger(name="bbc_app")
+            from bbc_simple.logger.fluent_logger import initialize_logger
+            initialize_logger()
+            self.logger = logging.getLogger("bbc_app")
         self.connection = socket.create_connection((host, port))
-        self.callback = Callback(log=self.logger)
+        if callback is not None:
+            self.callback = callback
+        else:
+            self.callback = Callback(log=self.logger)
         self.callback.set_client(self)
         self.use_query_id_based_message_wait = multiq
         self.user_id = None

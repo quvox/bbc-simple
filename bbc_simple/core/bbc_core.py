@@ -19,6 +19,7 @@ from gevent.socket import wait_read
 import gevent
 import os
 import signal
+import logging
 import binascii
 import traceback
 import copy
@@ -27,13 +28,13 @@ from argparse import ArgumentParser
 import sys
 sys.path.extend(["../../"])
 from bbc_simple.core import bbclib
-from bbc_simple.core.message_key_types import KeyType, to_2byte, InfraMessageCategory
+from bbc_simple.core.message_key_types import KeyType, to_2byte
 from bbc_simple.core.bbclib import BBcTransaction, MsgType
-from bbc_simple.core import bbc_network, user_message_routing, data_handler, message_key_types
+from bbc_simple.core import bbc_network, user_message_routing, message_key_types
 from bbc_simple.core import query_management, bbc_stats
 from bbc_simple.core.bbc_config import BBcConfig
 from bbc_simple.core.bbc_error import *
-from bbc_simple.logger.fluent_logger import get_fluent_logger
+from bbc_simple.logger.fluent_logger import initialize_logger
 
 from bbc_simple.core.bbc_config import DEFAULT_CORE_PORT
 
@@ -85,8 +86,11 @@ def _create_search_result(txobj_dict):
 
 class BBcCoreService:
     """Base service object of BBc-1"""
-    def __init__(self, core_port=None, workingdir=".bbc1", configfile=None, ipv6=False, server_start=True):
-        self.logger = get_fluent_logger(name="bbc_core")
+    def __init__(self, core_port=None, workingdir=".bbc1", configfile=None, ipv6=False,
+                 server_start=True, logconf=""):
+        if logconf != "":
+            initialize_logger(logconf)
+        self.logger = logging.getLogger("bbc_core")
         self.stats = bbc_stats.BBcStats()
         self.config = BBcConfig(workingdir, configfile)
         conf = self.config.get_config()

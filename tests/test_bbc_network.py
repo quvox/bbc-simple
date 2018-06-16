@@ -5,6 +5,7 @@ import shutil
 import queue
 import time
 import redis
+import logging
 
 import os
 import sys
@@ -48,6 +49,7 @@ class DummyCore:
     def __init__(self):
         self.user_message_routing = DummyCore.UserMessageRouting()
         self.stats = bbc_stats.BBcStats()
+        self.logger = logging.getLogger("test")
 
 
 class TestBBcNetwork(object):

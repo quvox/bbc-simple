@@ -5,6 +5,7 @@ Copyright (c) 2017 quvox.net
 This code is based on that in bbc-1 (https://github.com/beyond-blockchain/bbc1.git)
 """
 import binascii
+import logging
 import os
 import subprocess
 from gevent import monkey
@@ -15,7 +16,7 @@ sys.path.append("../../")
 
 from bbc_simple.core import bbc_app
 from bbc_simple.core.message_key_types import KeyType
-from bbc_simple.logger.fluent_logger import get_fluent_logger
+from bbc_simple.logger.fluent_logger import initialize_logger
 
 from argparse import ArgumentParser
 from datetime import timedelta
@@ -27,8 +28,9 @@ PID_FILE = "/tmp/bbc_admin_app_rest.pid"
 
 http = Flask(__name__)
 CORS(http)
-flog = get_fluent_logger(name="bbc_admin_app_rest")
+
 bbcapp = None
+flog = None
 
 
 def crossdomain(origin=None, methods=None, headers=None,
@@ -209,7 +211,12 @@ def get_stats():
     return jsonify(msg), 200
 
 
-def start_server(host="127.0.0.1", cport=9000, wport=3000):
+def start_server(host="127.0.0.1", cport=9000, wport=3000, log_init=True):
+    if log_init:
+        initialize_logger()
+    global flog
+    flog = logging.getLogger("bbc_app_rest")
+
     global bbcapp
     bbcapp = bbc_app.BBcAppClient(host=host, port=cport)
     #context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)

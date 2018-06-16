@@ -8,6 +8,7 @@ from gevent.server import StreamServer
 from gevent import socket
 from gevent.socket import wait_read
 import threading
+import logging
 
 import shutil
 import binascii
@@ -96,6 +97,7 @@ class DummyCore:
         self.ledger_manager = DummyCore.DB()
         self.storage_manager = DummyCore.Storage()
         self.stats = bbc_stats.BBcStats()
+        self.logger = logging.getLogger("test")
         th = threading.Thread(target=start_dummy_server, args=(port,))
         th.setDaemon(True)
         th.start()

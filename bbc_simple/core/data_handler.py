@@ -6,13 +6,13 @@ This code is based on that in bbc-1 (https://github.com/beyond-blockchain/bbc1.g
 """
 import mysql.connector
 import traceback
+import logging
 
 import os
 import sys
 sys.path.extend(["../../", os.path.abspath(os.path.dirname(__file__))])
 from bbc_simple.core import bbclib
 from bbc_simple.core.message_key_types import to_2byte, PayloadType, KeyType
-from bbc_simple.logger.fluent_logger import get_fluent_logger
 
 transaction_tbl_definition = [
     ["transaction_id", "BLOB"], ["transaction_data", "BLOB"],
@@ -35,7 +35,7 @@ class DataHandler:
         self.networking = networking
         self.core = networking.core
         self.stats = networking.core.stats
-        self.logger = get_fluent_logger(name="data_handler")
+        self.logger = networking.logger
         self.domain_id = domain_id
         self.domain_id_str = bbclib.convert_id_to_string(domain_id)[:16]
         self.config = config
