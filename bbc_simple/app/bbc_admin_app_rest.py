@@ -218,7 +218,7 @@ def start_server(host="127.0.0.1", cport=9000, wport=3000, log_init=True):
     flog = logging.getLogger("bbc_app_rest")
 
     global bbcapp
-    bbcapp = bbc_app.BBcAppClient(host=host, port=cport)
+    bbcapp = bbc_app.BBcAppClient(host=host, port=cport, logger=flog)
     #context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
     #context.load_cert_chain(os.path.join(argresult.ssl, "cert1.pem"), os.path.join(argresult.ssl, "privkey1.pem"))
     #http.run(host='0.0.0.0', port=argresult.waitport, ssl_context=context)
