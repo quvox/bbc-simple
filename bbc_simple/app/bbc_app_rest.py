@@ -43,7 +43,8 @@ def get_id_binary(jsondata, keystr):
 
 
 def get_encoded_bson_txobj(txdat):
-    txobj = bbclib.BBcTransaction(deserialize=txdat, format_type=bbclib.BBcFormat.FORMAT_BSON)
+    txobj = bbclib.BBcTransaction(deserialize=txdat)
+    txobj.set_format_type(format_type=bbclib.BBcFormat.FORMAT_BSON)
     return base64.b64encode(txobj.serialize_bson(no_header=True)).decode()
 
 

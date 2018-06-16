@@ -608,6 +608,9 @@ class BBcTransaction:
             ret += str(sig)
         return ret
 
+    def set_format_type(self, format_type):
+        self.format_type = format_type
+
     def add(self, event=None, reference=None, relation=None, witness=None, cross_ref=None):
         """Add parts"""
         if event is not None:
