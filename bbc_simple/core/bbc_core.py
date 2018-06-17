@@ -468,7 +468,8 @@ class BBcCoreService:
             return None
         txobj.digest()
 
-        if bbclib.validate_transaction_object(txobj):
+        flag, valid_asset, invalid_asset = bbclib.validate_transaction_object(txobj)
+        if flag:
             return txobj
         else:
             self.stats.update_stats_increment("transaction", "invalid", 1)

@@ -49,6 +49,7 @@ bool VS_STDCALL sign(int curvetype, int privkey_len, uint8_t *privkey, int hash_
     if (NULL == eckey) {
         return false;
     }
+
     EC_GROUP *ecgroup;
     if (curvetype == CURVE_TYPE_SECP256) {
         ecgroup = EC_GROUP_new_by_curve_name(NID_secp256k1);
@@ -96,6 +97,7 @@ int VS_STDCALL verify(int curvetype, int point_len, const uint8_t *point,
     if (NULL == eckey) {
         return false;
     }
+
     EC_GROUP *ecgroup;
     if (curvetype == CURVE_TYPE_SECP256) {
         ecgroup = EC_GROUP_new_by_curve_name(NID_secp256k1);
@@ -143,7 +145,15 @@ bool VS_STDCALL generate_keypair(int curvetype, uint8_t pubkey_type, int *pubkey
     if (NULL == eckey) {
         return false;
     }
-    EC_GROUP *ecgroup = EC_GROUP_new_by_curve_name(NID_secp256k1);
+
+    EC_GROUP *ecgroup;
+    if (curvetype == CURVE_TYPE_SECP256) {
+        ecgroup = EC_GROUP_new_by_curve_name(NID_secp256k1);
+    } else if (curvetype == CURVE_TYPE_P256) {
+        ecgroup = EC_GROUP_new_by_curve_name(NID_X9_62_prime256v1);
+    } else {
+        return false;
+    }
     if (NULL == ecgroup) {
         EC_KEY_free(eckey);
         return false;
@@ -227,7 +237,15 @@ bool VS_STDCALL get_public_key_compressed(int curvetype, int privkey_len, uint8_
     if (NULL == eckey) {
         return false;
     }
-    EC_GROUP *ecgroup = EC_GROUP_new_by_curve_name(NID_secp256k1);
+
+    EC_GROUP *ecgroup;
+    if (curvetype == CURVE_TYPE_SECP256) {
+        ecgroup = EC_GROUP_new_by_curve_name(NID_secp256k1);
+    } else if (curvetype == CURVE_TYPE_P256) {
+        ecgroup = EC_GROUP_new_by_curve_name(NID_X9_62_prime256v1);
+    } else {
+        return false;
+    }
     if (NULL == ecgroup) {
         EC_KEY_free(eckey);
         return false;
@@ -265,6 +283,7 @@ bool VS_STDCALL convert_from_der(int curvetype, long der_len, const unsigned cha
     if (NULL == eckey) {
         return false;
     }
+
     EC_GROUP *ecgroup;
     if (curvetype == CURVE_TYPE_SECP256) {
         ecgroup = EC_GROUP_new_by_curve_name(NID_secp256k1);
@@ -332,6 +351,7 @@ bool VS_STDCALL convert_from_pem(int curvetype, const char *pem,
     if (NULL == eckey) {
         return false;
     }
+
     EC_GROUP *ecgroup;
     if (curvetype == CURVE_TYPE_SECP256) {
         ecgroup = EC_GROUP_new_by_curve_name(NID_secp256k1);
@@ -382,6 +402,7 @@ int VS_STDCALL output_der(int curvetype, int privkey_len, uint8_t *privkey, uint
     if (NULL == eckey) {
         return 0;
     }
+
     EC_GROUP *ecgroup;
     if (curvetype == CURVE_TYPE_SECP256) {
         ecgroup = EC_GROUP_new_by_curve_name(NID_secp256k1);
@@ -425,6 +446,7 @@ int VS_STDCALL output_pem(int curvetype, int privkey_len, uint8_t *privkey, uint
     if (NULL == eckey) {
         return 0;
     }
+
     EC_GROUP *ecgroup;
     if (curvetype == CURVE_TYPE_SECP256) {
         ecgroup = EC_GROUP_new_by_curve_name(NID_secp256k1);
@@ -476,6 +498,7 @@ int VS_STDCALL output_public_key_der(int curvetype, int point_len, uint8_t *poin
     if (NULL == eckey) {
         return 0;
     }
+
     EC_GROUP *ecgroup;
     if (curvetype == CURVE_TYPE_SECP256) {
         ecgroup = EC_GROUP_new_by_curve_name(NID_secp256k1);
@@ -515,6 +538,7 @@ int VS_STDCALL output_public_key_pem(int curvetype, int point_len, uint8_t *poin
     if (NULL == eckey) {
         return 0;
     }
+
     EC_GROUP *ecgroup;
     if (curvetype == CURVE_TYPE_SECP256) {
         ecgroup = EC_GROUP_new_by_curve_name(NID_secp256k1);
