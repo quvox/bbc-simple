@@ -4,10 +4,9 @@ import pytest
 import requests
 import base64
 import bson
-import subprocess
+import threading
 import time
-import signal
-import os
+import shutil
 
 import sys
 sys.path.extend(["../"])
@@ -102,20 +101,20 @@ def start_server():
     bbc_rest.start_server()
 
 
-def exit_test(signum=None, frame=None):
-    print("===================")
-    subprocess.call(["python", "bbc_core.py", "-k"], cwd="../bbc_simple/core")
-    subprocess.call(["python", "bbc_app_rest.py", "-k"], cwd="../bbc_simple/app")
-    os._exit(0)
-
-
 class TestBBcAppClient(object):
 
     def test_00_setup(self):
         print("\n-----", sys._getframe().f_code.co_name, "-----")
-        signal.signal(signal.SIGINT, exit_test)
-        subprocess.call(["python", "bbc_core.py", "-d"], cwd="../bbc_simple/core")
-        subprocess.call(["python", "bbc_app_rest.py", "-d"], cwd="../bbc_simple/app")
+        shutil.rmtree(".bbc1-9000")
+        prepare(core_num=core_num, client_num=client_num)
+
+        for i in range(core_num):
+            start_core_thread(index=i)
+        time.sleep(1)
+        th = threading.Thread(target=start_server)
+        th.setDaemon(True)
+        th.start()
+        time.sleep(1)
 
     def test_01_creat_domain(self):
         print("\n-----", sys._getframe().f_code.co_name, "-----")
@@ -255,10 +254,6 @@ class TestBBcAppClient(object):
         req = requests.get(BASE_URL+'/domain_close/'+domain_id.hex())
         assert req.status_code == 200
         print("response:", req.json())
-
-    def test_99_stop_all_process(self):
-        print("\n-----", sys._getframe().f_code.co_name, "-----")
-        exit_test()
 
 
 if __name__ == '__main__':

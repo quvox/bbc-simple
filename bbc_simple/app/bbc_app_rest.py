@@ -4,9 +4,6 @@ Copyright (c) 2017 quvox.net
 
 This code is based on that in bbc-1 (https://github.com/beyond-blockchain/bbc1.git)
 """
-import gevent
-from gevent import monkey
-monkey.patch_all()
 import bson
 import logging
 import base64
@@ -15,6 +12,7 @@ import os
 import subprocess
 
 import sys
+
 sys.path.append("../../")
 from bbc_simple.core import bbc_app, bbclib
 from bbc_simple.core.message_key_types import KeyType
@@ -26,7 +24,7 @@ from argparse import ArgumentParser
 from datetime import timedelta
 from functools import update_wrapper
 
-from aiohttp.http_exceptions import  HttpBadRequest
+from aiohttp.http_exceptions import HttpBadRequest
 from aiohttp.web_exceptions import HTTPMethodNotAllowed
 from aiohttp.web import Request, Response
 from aiohttp.web_urldispatcher import UrlDispatcher
@@ -102,7 +100,6 @@ def crossdomain(origin=None, methods=None, headers=None,
 
 @routes.post('/domain_setup')
 async def domain_setup(request):
-
     json_data = await request.json()
 
     domain_id = binascii.a2b_hex(json_data.get('domain_id'))
@@ -110,8 +107,8 @@ async def domain_setup(request):
     qid = bbcapp.domain_setup(domain_id, config=config)
     retmsg = bbcapp.callback.sync_by_queryid(qid, timeout=5)
     if retmsg is None:
-        return json_response( {'error': 'No response'}, 400 )
-        #return jsonify({'error': 'No response'}), 400
+        return json_response({'error': 'No response'}, 400)
+        # return jsonify({'error': 'No response'}), 400
     msg = {'result': retmsg[KeyType.result]}
     if KeyType.reason in retmsg:
         msg['reason'] = retmsg[KeyType.reason].decode()
@@ -122,7 +119,6 @@ async def domain_setup(request):
 
 @routes.get('/domain_close/{domain_id_str}')
 async def domain_close(request):
-
     try:
         domain_id_str = request.match_info['domain_id_str']
         domain_id = binascii.a2b_hex(domain_id_str)
@@ -132,7 +128,7 @@ async def domain_close(request):
     retmsg = bbcapp.callback.sync_by_queryid(qid, timeout=5)
     if retmsg is None:
         return json_response({'error': 'No response'}, 400)
-    
+
     msg = {'result': retmsg[KeyType.result]}
     if KeyType.reason in retmsg:
         msg['reason'] = retmsg[KeyType.reason].decode()
@@ -314,15 +310,18 @@ def start_server(host="127.0.0.1", cport=9000, wport=3000, log_init=True):
         initialize_logger()
     global flog
     flog = logging.getLogger("bbc_app_async_rest")
+    import asyncio
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     global bbcapp
     bbcapp = bbc_app.BBcAppClient(host=host, port=cport, logger=flog)
-    #context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
-    #context.load_cert_chain(os.path.join(argresult.ssl, "cert1.pem"), os.path.join(argresult.ssl, "privkey1.pem"))
-    #http.run(host='0.0.0.0', port=argresult.waitport, ssl_context=context)
+    # context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+    # context.load_cert_chain(os.path.join(argresult.ssl, "cert1.pem"), os.path.join(argresult.ssl, "privkey1.pem"))
+    # http.run(host='0.0.0.0', port=argresult.waitport, ssl_context=context)
     app = web.Application()
     app.router.add_routes(routes)
 
-    web.run_app(app,port=wport)
+    web.run_app(app, port=wport)
 
 
 def daemonize(pidfile=PID_FILE):
