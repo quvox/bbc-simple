@@ -20,6 +20,7 @@ import binascii
 import hashlib
 import bson
 import bz2
+import zlib
 import random
 import time
 import traceback
@@ -46,6 +47,7 @@ class BBcFormat:
     FORMAT_BINARY = 0
     FORMAT_BSON = 1
     FORMAT_BSON_COMPRESS_BZ2 = 2
+    FORMAT_BSON_COMPRESS_ZLIB = 3
 
 
 def set_error(code=-1, txt=""):
@@ -183,6 +185,23 @@ def add_event_asset(transaction, event_idx, asset_group_id, user_id, asset_body=
     transaction.events[event_idx].add(asset_group_id=asset_group_id, asset=ast)
 
 
+def make_relation_with_asset(asset_group_id, user_id, asset_body=None, asset_file=None,
+                             format_type=BBcFormat.FORMAT_BINARY, id_length=DEFAULT_ID_LEN):
+    """Utility to make BBcRelation object"""
+    relation = BBcRelation(format_type=format_type, id_length=id_length)
+    ast = BBcAsset(user_id=user_id, asset_file=asset_file, asset_body=asset_body,
+                   format_type=format_type, id_length=id_length)
+    relation.add(asset_group_id=asset_group_id, asset=ast)
+    return relation
+
+
+def add_pointer_in_relation(relation, ref_transaction_id=None, ref_asset_id=None):
+    """Utility to add BBcRelation object with BBcPointer in the BBcRelation object"""
+    pointer = BBcPointer(transaction_id=ref_transaction_id, asset_id=ref_asset_id,
+                         format_type=relation.format_type, id_length=relation.id_length)
+    relation.add(pointer=pointer)
+
+
 def recover_signature_object(data, format_type=BBcFormat.FORMAT_BINARY):
     """Deserialize signature data"""
     sig = BBcSignature(format_type=format_type)
@@ -301,13 +320,13 @@ def verify_using_cross_ref(domain_id, transaction_id, transaction_base_digest, c
     Returns:
         bool: True if valid
     """
-    if format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2]:
+    if format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
         cross_ref_data = bson.loads(cross_ref_data)
         sigdata = bson.loads(sigdata)
     cross = BBcCrossRef(deserialize=cross_ref_data, format_type=format_type)
     if cross.domain_id != domain_id or cross.transaction_id != transaction_id:
         return False
-    if format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2]:
+    if format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
         dat = bson.dumps({
             "tx_base": transaction_base_digest,
             "cross_ref": cross_ref_data,
@@ -465,7 +484,7 @@ class BBcSignature:
 
     def serialize(self):
         """Serialize this object"""
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2]:
+        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
             return self.serialize_bson()
         if self.not_initialized:
             dat = bytearray(to_4byte(KeyType.NOT_INITIALIZED))
@@ -487,7 +506,7 @@ class BBcSignature:
         Returns:
             bool: True if successful
         """
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2]:
+        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
             return self.deserialize_bson(data)
         ptr = 0
         try:
@@ -684,7 +703,7 @@ class BBcTransaction:
 
     def serialize(self, for_id=False):
         """Serialize the whole parts"""
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2]:
+        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
             return self.serialize_bson(for_id)
         dat = bytearray(to_4byte(self.version))
         dat.extend(to_8byte(self.timestamp))
@@ -748,7 +767,7 @@ class BBcTransaction:
         self.transaction_data = data[:]
         ptr = 0
         ptr, self.format_type = get_n_byte_int(ptr, 2, data)
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2]:
+        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
             return self.deserialize_bson(data[2:])
         data_size = len(data)
         try:
@@ -868,7 +887,9 @@ class BBcTransaction:
             "signatures": [sig.serialize() for sig in self.signatures],
         })
         if self.format_type == BBcFormat.FORMAT_BSON_COMPRESS_BZ2:
-            dat = bz2.compress(dat)
+            dat = bz2.compress(dat, compresslevel=1)
+        elif self.format_type == BBcFormat.FORMAT_BSON_COMPRESS_ZLIB:
+            dat = zlib.compress(dat)
         if no_header:
             return dat
         self.transaction_data = bytes(to_2byte(self.format_type) + dat)
@@ -884,6 +905,8 @@ class BBcTransaction:
         """
         if self.format_type == BBcFormat.FORMAT_BSON_COMPRESS_BZ2:
             data = bz2.decompress(data)
+        elif self.format_type == BBcFormat.FORMAT_BSON_COMPRESS_ZLIB:
+            data = zlib.decompress(data)
         bsondata = bson.loads(data)
         tx_base = bsondata["transaction_base"]
         self.version = tx_base["header"]["version"]
@@ -1224,7 +1247,7 @@ class BBcEvent:
         Returns:
             bytes: serialized binary data
         """
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2]:
+        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
             return self.serialize_bson()
         dat = bytearray(to_bigint(self.asset_group_id, size=self.id_length))
         dat.extend(to_2byte(len(self.reference_indices)))
@@ -1250,7 +1273,7 @@ class BBcEvent:
         Returns:
             bool: True if successful
         """
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2]:
+        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
             return self.deserialize_bson(data)
         ptr = 0
         data_size = len(data)
@@ -1398,7 +1421,7 @@ class BBcReference:
         Returns:
             bytes: serialized binary data
         """
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2]:
+        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
             return self.serialize_bson()
         dat = bytearray(to_bigint(self.asset_group_id, size=self.id_length))
         dat.extend(to_bigint(self.transaction_id, size=self.id_length))
@@ -1416,7 +1439,7 @@ class BBcReference:
         Returns:
             bool: True if successful
         """
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2]:
+        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
             return self.deserialize_bson(data)
         ptr = 0
         data_size = len(data)
@@ -1500,7 +1523,7 @@ class BBcRelation:
         Returns:
             bytes: serialized binary data
         """
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2]:
+        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
             return self.serialize_bson()
         dat = bytearray(to_bigint(self.asset_group_id, size=self.id_length))
         dat.extend(to_2byte(len(self.pointers)))
@@ -1524,7 +1547,7 @@ class BBcRelation:
         Returns:
             bool: True if successful
         """
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2]:
+        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
             return self.deserialize_bson(data)
         ptr = 0
         data_size = len(data)
@@ -1618,7 +1641,7 @@ class BBcPointer:
         Returns:
             bytes: serialized binary data
         """
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2]:
+        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
             return self.serialize_bson()
         dat = bytearray(to_bigint(self.transaction_id, size=self.id_length))
         if self.asset_id is None:
@@ -1636,7 +1659,7 @@ class BBcPointer:
         Returns:
             bool: True if successful
         """
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2]:
+        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
             return self.deserialize_bson(data)
         ptr = 0
         try:
@@ -1711,7 +1734,7 @@ class BBcWitness:
         Returns:
             bytes: serialized binary data
         """
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2]:
+        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
             return self.serialize_bson()
         dat = bytearray(to_2byte(len(self.sig_indices)))
         for i in range(len(self.sig_indices)):
@@ -1727,7 +1750,7 @@ class BBcWitness:
         Returns:
             bool: True if successful
         """
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2]:
+        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
             return self.deserialize_bson(data)
         ptr = 0
         data_size = len(data)
@@ -1854,7 +1877,7 @@ class BBcAsset:
         Returns:
             bytes: serialized binary data
         """
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2]:
+        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
             return self.serialize_bson(for_digest_calculation=for_digest_calculation)
         if for_digest_calculation:
             dat = bytearray(to_bigint(self.user_id, size=self.id_length))
@@ -1902,7 +1925,7 @@ class BBcAsset:
         Returns:
             bool: True if successful
         """
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2]:
+        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
             return self.deserialize_bson(data)
         ptr = 0
         try:
@@ -1992,7 +2015,7 @@ class BBcCrossRef:
         Returns:
             bytes: serialized binary data
         """
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2]:
+        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
             return self.serialize_bson()
         dat = bytearray(to_bigint(self.domain_id))
         dat.extend(to_bigint(self.transaction_id))
@@ -2006,7 +2029,7 @@ class BBcCrossRef:
         Returns:
             bool: True if successful
         """
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2]:
+        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
             return self.deserialize_bson(data)
         ptr = 0
         try:

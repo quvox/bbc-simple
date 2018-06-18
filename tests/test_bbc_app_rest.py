@@ -107,6 +107,7 @@ class TestBBcAppClient(object):
         print("\n-----", sys._getframe().f_code.co_name, "-----")
         shutil.rmtree(".bbc1-9000")
         prepare(core_num=core_num, client_num=client_num)
+
         for i in range(core_num):
             start_core_thread(index=i)
         time.sleep(1)
