@@ -576,8 +576,8 @@ class Callback:
 
     If you want to implement your own way to process messages, inherit this class.
     """
-    def __init__(self, log=None):
-        self.logger = log
+    def __init__(self, logger=None):
+        self.logger = logger
         self.client = None
         self.queue = queue.Queue()
         self.query_queue = dict()
