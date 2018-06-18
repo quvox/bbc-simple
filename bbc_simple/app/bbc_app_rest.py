@@ -37,13 +37,14 @@ from aiohttp import web
 
 routes = web.RouteTableDef()
 
-PID_FILE = "/tmp/bbc_app_asyc_rest.pid"
+PID_FILE = "/tmp/bbc_app_rest.pid"
 
 bbcapp = None
 flog = None
 
-def json_response(jsondata = {}, stat=200 ) :
-    return Response ( status=stat, body=json.dumps(jsondata), content_type='application/json')
+
+def json_response(jsondata={}, stat=200):
+    return Response(status=stat, body=json.dumps(jsondata), content_type='application/json')
 
 
 def get_id_binary(jsondata, keystr):
@@ -197,10 +198,10 @@ async def insert_transaction(request):
     flog.debug(msg)
     return json_response(msg, 200)
 
+
 @routes.post('/search_transaction/{domain_id_str}')
 async def search_transaction(request):
     json_data = await request.json()
-    print(type(json_data))
     try:
         domain_id_str = request.match_info['domain_id_str']
         domain_id = binascii.a2b_hex(domain_id_str)
@@ -306,6 +307,7 @@ async def traverse_transactions(request):
            }
     flog.debug(msg)
     return json_response(msg, 200)
+
 
 def start_server(host="127.0.0.1", cport=9000, wport=3000, log_init=True):
     if log_init:
