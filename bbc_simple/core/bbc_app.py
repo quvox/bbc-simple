@@ -145,9 +145,10 @@ class BBcAppClient:
             KeyType.command: cmd,
             KeyType.domain_id: self.domain_id,
             KeyType.source_user_id: user_id,
-            KeyType.query_id: self.query_id,
             KeyType.status: ESUCCESS,
         }
+        if cmd not in MESSAGE_WITH_NO_RESPONSE:
+            msg[KeyType.query_id] = self.query_id
         return msg
 
     def _send_msg(self, dat):
