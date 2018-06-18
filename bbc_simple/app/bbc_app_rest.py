@@ -7,7 +7,7 @@ This code is based on that in bbc-1 (https://github.com/beyond-blockchain/bbc1.g
 import gevent
 from gevent import monkey
 monkey.patch_all()
-
+import bson
 import logging
 import base64
 import binascii
@@ -20,19 +20,30 @@ from bbc_simple.core import bbc_app, bbclib
 from bbc_simple.core.message_key_types import KeyType
 from bbc_simple.logger.fluent_logger import initialize_logger
 
+from logging import getLogger, FileHandler, StreamHandler, DEBUG
+
 from argparse import ArgumentParser
 from datetime import timedelta
 from functools import update_wrapper
-from flask import Flask, jsonify, request, make_response, current_app
-from flask_cors import CORS
 
-PID_FILE = "/tmp/bbc_admin_app_rest.pid"
+from aiohttp.http_exceptions import  HttpBadRequest
+from aiohttp.web_exceptions import HTTPMethodNotAllowed
+from aiohttp.web import Request, Response
+from aiohttp.web_urldispatcher import UrlDispatcher
 
-http = Flask(__name__)
-CORS(http)
+import textwrap
+import json
+from aiohttp import web
+
+routes = web.RouteTableDef()
+
+PID_FILE = "/tmp/bbc_app_asyc_rest.pid"
 
 bbcapp = None
 flog = None
+
+def json_response(jsondata = {}, stat=200 ) :
+    return Response ( status=stat, body=json.dumps(jsondata), content_type='application/json')
 
 
 def get_id_binary(jsondata, keystr):
@@ -88,108 +99,110 @@ def crossdomain(origin=None, methods=None, headers=None,
     return decorator
 
 
-@http.route('/domain_setup', methods=['POST', 'OPTIONS'])
-@crossdomain(origin='*', headers=['Content-Type'])
-def domain_setup():
-    json_data = request.json
+@routes.post('/domain_setup')
+async def domain_setup(request):
+
+    json_data = await request.json()
+
     domain_id = binascii.a2b_hex(json_data.get('domain_id'))
     config = json_data.get('config', None)
     qid = bbcapp.domain_setup(domain_id, config=config)
     retmsg = bbcapp.callback.sync_by_queryid(qid, timeout=5)
     if retmsg is None:
-        return jsonify({'error': 'No response'}), 400
+        return json_response( {'error': 'No response'}, 400 )
+        #return jsonify({'error': 'No response'}), 400
     msg = {'result': retmsg[KeyType.result]}
     if KeyType.reason in retmsg:
         msg['reason'] = retmsg[KeyType.reason].decode()
     flog.debug({'cmd': 'domain_setup', 'result': retmsg[KeyType.result]})
-    return jsonify(msg), 200
+
+    return json_response(msg, 200)
 
 
-@http.route('/domain_close/<domain_id_str>', methods=['GET', 'OPTIONS'])
-@crossdomain(origin='*', headers=['Content-Type'])
-def domain_close(domain_id_str=None):
+@routes.get('/domain_close/{domain_id_str}')
+async def domain_close(request):
+
     try:
+        domain_id_str = request.match_info['domain_id_str']
         domain_id = binascii.a2b_hex(domain_id_str)
     except:
-        return jsonify({'error': 'invalid request'}), 500
+        return json_response({'error': 'invalid request'}, 500)
     qid = bbcapp.domain_close(domain_id)
     retmsg = bbcapp.callback.sync_by_queryid(qid, timeout=5)
     if retmsg is None:
-        return jsonify({'error': 'No response'}), 400
+        return json_response({'error': 'No response'}, 400)
+    
     msg = {'result': retmsg[KeyType.result]}
     if KeyType.reason in retmsg:
         msg['reason'] = retmsg[KeyType.reason].decode()
     flog.debug({'cmd': 'domain_close', 'result': retmsg[KeyType.result]})
-    return jsonify(msg), 200
+    return json_response(msg, 200)
 
 
-@http.route('/gather_signatures', methods=['POST', 'OPTIONS'])
-@crossdomain(origin='*', headers=['Content-Type'])
-def gather_signatures():
-    json_data = request.json
+@routes.post('/gather_signatures')
+async def gather_signatures(request):
+    json_data = await request.json()
     transaction = json_data.get('transaction')
     reference_obj = json_data.get('reference_obj')
     destinations = json_data.get('destinations')
     flog.debug({'result': 'User registered successfully'})
-    return jsonify({'message': 'User registered successfully'}), 200
+    return json_response({'message': 'User registered successfully'}, 200)
 
 
-@http.route('/sendback_signature', methods=['POST', 'OPTIONS'])
-@crossdomain(origin='*', headers=['Content-Type'])
-def sendback_signature():
-    json_data = request.json
+@routes.post('/sendback_signature')
+async def sendback_signature(request):
+    json_data = await request.json()
     dest_user_id = json_data.get('dest_user_id')
     transaction_id = json_data.get('transaction_id')
     ref_index = json_data.get('ref_index')
     signature = json_data.get('signature')
     query_id = json_data.get('query_id')
     flog.debug({'result': 'User registered successfully'})
-    return jsonify({'message': 'User registered successfully'}), 200
+    return json_response({'message': 'User registered successfully'}, 200)
 
 
-@http.route('/sendback_denial_of_sign', methods=['POST', 'OPTIONS'])
-@crossdomain(origin='*', headers=['Content-Type'])
-def sendback_denial_of_sign():
-    json_data = request.json
+@routes.post('/sendback_denial_of_sign')
+async def sendback_denial_of_sign(request):
+    json_data = request.json()
     dest_user_id = json_data.get('dest_user_id')
     transaction_id = json_data.get('transaction_id')
     reason_text = json_data.get('reason_text')
     query_id = json_data.get('query_id')
     flog.debug({'result': 'User registered successfully'})
-    return jsonify({'message': 'User registered successfully'}), 200
+    return json_response({'message': 'User registered successfully'}, 200)
 
 
-@http.route('/insert_transaction/<domain_id_str>', methods=['POST', 'OPTIONS'])
-@crossdomain(origin='*', headers=['Content-Type'])
-def insert_transaction(domain_id_str=None):
-    json_data = request.json
+@routes.post('/insert_transaction/{domain_id_str}')
+async def insert_transaction(request):
+    json_data = await request.json()
     try:
+        domain_id_str = request.match_info['domain_id_str']
         domain_id = binascii.a2b_hex(domain_id_str)
         bbcapp.set_domain_id(domain_id)
         source_user_id = get_id_binary(json_data, 'source_user_id')
         bbcapp.set_user_id(source_user_id)
         bbcapp.register_to_core()
     except:
-        return jsonify({'error': 'invalid request'}), 500
+        return json_response({'error': 'invalid request'}, 500)
     txobj = bbclib.BBcTransaction(format_type=bbclib.BBcFormat.FORMAT_BSON)
     txdat = base64.b64decode(json_data.get('transaction_bson'))
     txobj.deserialize_bson(txdat)
     qid = bbcapp.insert_transaction(txobj)
     retmsg = bbcapp.callback.sync_by_queryid(qid, timeout=5)
     if retmsg is None:
-        return jsonify({'error': 'No response'}), 400
+        return json_response({'error': 'No response'}, 400)
     bbcapp.unregister_from_core()
     msg = {'result': 'success',
            'transaction_id': retmsg[KeyType.transaction_id].hex()}
     flog.debug(msg)
-    return jsonify(msg), 200
+    return json_response(msg, 200)
 
-
-@http.route('/search_transaction/<domain_id_str>', methods=['POST', 'OPTIONS'])
-@crossdomain(origin='*', headers=['Content-Type'])
-def search_transaction(domain_id_str=None):
-    json_data = request.json
+@routes.post('/search_transaction/{domain_id_str}')
+async def search_transaction(request):
+    json_data = await request.json()
+    print(type(json_data))
     try:
+        domain_id_str = request.match_info['domain_id_str']
         domain_id = binascii.a2b_hex(domain_id_str)
         bbcapp.set_domain_id(domain_id)
         source_user_id = get_id_binary(json_data, 'source_user_id')
@@ -197,25 +210,25 @@ def search_transaction(domain_id_str=None):
         bbcapp.register_to_core()
         txid = get_id_binary(json_data, 'transaction_id')
     except:
-        return jsonify({'error': 'invalid request'}), 500
+        return json_response({'error': 'invalid request'}, 500)
     qid = bbcapp.search_transaction(txid)
     retmsg = bbcapp.callback.sync_by_queryid(qid, timeout=5)
     if retmsg is None:
-        return jsonify({'error': 'No response'}), 400
+        return json_response({'error': 'No response'}, 400)
 
     bbcapp.unregister_from_core()
 
     msg = {'result': 'success',
            'transaction_bson': get_encoded_bson_txobj(retmsg[KeyType.transaction_data])}
     flog.debug(msg)
-    return jsonify(msg), 200
+    return json_response(msg, 200)
 
 
-@http.route('/search_transaction_with_condition/<domain_id_str>', methods=['POST', 'OPTIONS'])
-@crossdomain(origin='*', headers=['Content-Type'])
-def search_transaction_with_condition(domain_id_str=None):
-    json_data = request.json
+@routes.post('/search_transaction_with_condition/{domain_id_str}')
+async def search_transaction_with_condition(request):
+    json_data = await request.json()
     try:
+        domain_id_str = request.match_info['domain_id_str']
         domain_id = binascii.a2b_hex(domain_id_str)
         bbcapp.set_domain_id(domain_id)
         source_user_id = get_id_binary(json_data, 'source_user_id')
@@ -226,12 +239,12 @@ def search_transaction_with_condition(domain_id_str=None):
         user_id = get_id_binary(json_data, 'user_id')
         count = json_data.get('count', 1)
     except:
-        return jsonify({'error': 'invalid request'}), 500
+        return json_response({'error': 'invalid request'}, 500)
     qid = bbcapp.search_transaction_with_condition(asset_group_id=asset_group_id, asset_id=asset_id,
                                                    user_id=user_id, count=count)
     retmsg = bbcapp.callback.sync_by_queryid(qid, timeout=5)
     if retmsg is None:
-        return jsonify({'error': 'No response'}), 400
+        return json_response({'error': 'No response'}, 400)
 
     bbcapp.unregister_from_core()
 
@@ -248,14 +261,14 @@ def search_transaction_with_condition(domain_id_str=None):
            'transaction_compromised_bsons': tx_ng
            }
     flog.debug(msg)
-    return jsonify(msg), 200
+    return json_response(msg, 200)
 
 
-@http.route('/traverse_transactions/<domain_id_str>', methods=['POST', 'OPTIONS'])
-@crossdomain(origin='*', headers=['Content-Type'])
-def traverse_transactions(domain_id_str=None):
-    json_data = request.json
+@routes.post('/traverse_transactions/{domain_id_str}')
+async def traverse_transactions(request):
+    json_data = await request.json()
     try:
+        domain_id_str = request.match_info['domain_id_str']
         domain_id = binascii.a2b_hex(domain_id_str)
         bbcapp.set_domain_id(domain_id)
         source_user_id = get_id_binary(json_data, 'source_user_id')
@@ -267,16 +280,16 @@ def traverse_transactions(domain_id_str=None):
         direction = json_data.get('direction', 0)
         hop_count = json_data.get('hop_count', 3)
     except:
-        return jsonify({'error': 'invalid request'}), 500
+        return json_response({'error': 'invalid request'}, 500)
     qid = bbcapp.traverse_transactions(transaction_id=transaction_id, asset_group_id=asset_group_id, user_id=user_id,
                                        direction=direction, hop_count=hop_count)
     retmsg = bbcapp.callback.sync_by_queryid(qid, timeout=5)
     if retmsg is None:
-        return jsonify({'error': 'No response'}), 400
+        return json_response({'error': 'No response'}, 400)
     elif KeyType.reason in retmsg:
         msg = {'error': retmsg[KeyType.reason].decode()}
         flog.debug(msg)
-        return jsonify(msg), 400
+        return json_response(msg, 400)
 
     bbcapp.unregister_from_core()
 
@@ -292,21 +305,22 @@ def traverse_transactions(domain_id_str=None):
            'transaction_tree': tx_tree
            }
     flog.debug(msg)
-    return jsonify(msg), 200
-
+    return json_response(msg, 200)
 
 def start_server(host="127.0.0.1", cport=9000, wport=3000, log_init=True):
     if log_init:
         initialize_logger()
     global flog
-    flog = logging.getLogger("bbc_app_rest")
-
+    flog = logging.getLogger("bbc_app_async_rest")
     global bbcapp
     bbcapp = bbc_app.BBcAppClient(host=host, port=cport, logger=flog)
     #context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
     #context.load_cert_chain(os.path.join(argresult.ssl, "cert1.pem"), os.path.join(argresult.ssl, "privkey1.pem"))
     #http.run(host='0.0.0.0', port=argresult.waitport, ssl_context=context)
-    http.run(host='0.0.0.0', port=wport)
+    app = web.Application()
+    app.router.add_routes(routes)
+
+    web.run_app(app,port=wport)
 
 
 def daemonize(pidfile=PID_FILE):

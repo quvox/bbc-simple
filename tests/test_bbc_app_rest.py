@@ -107,6 +107,7 @@ class TestBBcAppClient(object):
         print("\n-----", sys._getframe().f_code.co_name, "-----")
         shutil.rmtree(".bbc1-9000")
         prepare(core_num=core_num, client_num=client_num)
+        '''
         for i in range(core_num):
             start_core_thread(index=i)
         time.sleep(1)
@@ -114,6 +115,7 @@ class TestBBcAppClient(object):
         th.setDaemon(True)
         th.start()
         time.sleep(1)
+        '''
 
     def test_01_creat_domain(self):
         print("\n-----", sys._getframe().f_code.co_name, "-----")
