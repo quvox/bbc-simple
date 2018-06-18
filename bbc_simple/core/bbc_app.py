@@ -84,7 +84,7 @@ class BBcAppClient:
         if callback is not None:
             self.callback = callback
         else:
-            self.callback = Callback(log=self.logger)
+            self.callback = Callback(logger=self.logger)
         self.callback.set_client(self)
         self.use_query_id_based_message_wait = multiq
         self.user_id = None
