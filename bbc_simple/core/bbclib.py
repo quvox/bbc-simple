@@ -185,6 +185,23 @@ def add_event_asset(transaction, event_idx, asset_group_id, user_id, asset_body=
     transaction.events[event_idx].add(asset_group_id=asset_group_id, asset=ast)
 
 
+def make_relation_with_asset(asset_group_id, user_id, asset_body=None, asset_file=None,
+                             format_type=BBcFormat.FORMAT_BINARY, id_length=DEFAULT_ID_LEN):
+    """Utility to make BBcRelation object"""
+    relation = BBcRelation(format_type=format_type, id_length=id_length)
+    ast = BBcAsset(user_id=user_id, asset_file=asset_file, asset_body=asset_body,
+                   format_type=format_type, id_length=id_length)
+    relation.add(asset_group_id=asset_group_id, asset=ast)
+    return relation
+
+
+def add_pointer_in_relation(relation, ref_transaction_id=None, ref_asset_id=None):
+    """Utility to add BBcRelation object with BBcPointer in the BBcRelation object"""
+    pointer = BBcPointer(transaction_id=ref_transaction_id, asset_id=ref_asset_id,
+                         format_type=relation.format_type, id_length=relation.id_length)
+    relation.add(pointer=pointer)
+
+
 def recover_signature_object(data, format_type=BBcFormat.FORMAT_BINARY):
     """Deserialize signature data"""
     sig = BBcSignature(format_type=format_type)
