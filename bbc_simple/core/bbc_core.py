@@ -756,5 +756,6 @@ if __name__ == '__main__':
         core_port=argresult.coreport,
         workingdir=argresult.workingdir,
         configfile=argresult.config,
-        ipv6=argresult.ipv6
+        ipv6=argresult.ipv6,
+        #logconf="../logger/logconf.yml"
     )

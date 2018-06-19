@@ -127,24 +127,27 @@ class BBcAppClient:
         else:
             dat.update(admin_info)
 
-    def _make_message_structure(self, cmd):
+    def _make_message_structure(self, cmd, domain_id=None, src_user_id=None):
         """Make a base message structure for sending to the core node
 
         Args:
             cmd (bytes): command type defined in bbclib.MsgType class
+            domain_id(bytes): target domain_id
+            src_user_id(bytes): user_id of the sender
         """
         self.query_id = ((int.from_bytes(self.query_id, 'little') + 1) % 65536).to_bytes(2, 'little')
         if cmd not in MESSAGE_WITH_NO_RESPONSE:
             if self.use_query_id_based_message_wait:
                 if self.query_id not in self.callback.query_queue:
                     self.callback.create_queue(self.query_id)
-        user_id = None
-        if self.user_id is not None:
-            user_id = self.user_id[:self.id_length]
+        if src_user_id is None and self.user_id is not None:
+            src_user_id = self.user_id[:self.id_length]
+        if domain_id is None:
+            domain_id = self.domain_id
         msg = {
             KeyType.command: cmd,
-            KeyType.domain_id: self.domain_id,
-            KeyType.source_user_id: user_id,
+            KeyType.domain_id: domain_id,
+            KeyType.source_user_id: src_user_id,
             KeyType.status: ESUCCESS,
         }
         if cmd not in MESSAGE_WITH_NO_RESPONSE:
@@ -170,18 +173,19 @@ class BBcAppClient:
             return None
         return self.query_id
 
-    def domain_setup(self, domain_id, config=None):
+    def domain_setup(self, domain_id, src_user_id=None, config=None):
         """Set up domain with the specified network module and storage
 
         This method should be used by a system administrator.
 
         Args:
             domain_id (bytes): domain_id to create
+            src_user_id(bytes): user_id of the sender
             config (str): system config in json format
         Returns:
             bytes: query_id
         """
-        dat = self._make_message_structure(MsgType.REQUEST_SETUP_DOMAIN)
+        dat = self._make_message_structure(MsgType.REQUEST_SETUP_DOMAIN, src_user_id=src_user_id)
         admin_info = {
             KeyType.domain_id: domain_id,
             KeyType.random: bbclib.get_random_value(32)
@@ -191,11 +195,12 @@ class BBcAppClient:
         self.include_admin_info(dat, admin_info, None)
         return self._send_msg(dat)
 
-    def domain_close(self, domain_id=None):
+    def domain_close(self, domain_id=None, src_user_id=None):
         """Close domain leading to remove_domain in the core
 
         Args:
             domain_id (bytes): domain_id to delete
+            src_user_id(bytes): user_id of the sender
         Returns:
             bytes: query_id
         """
@@ -203,7 +208,7 @@ class BBcAppClient:
             domain_id = self.domain_id
         if domain_id is None:
             return None
-        dat = self._make_message_structure(MsgType.REQUEST_CLOSE_DOMAIN)
+        dat = self._make_message_structure(MsgType.REQUEST_CLOSE_DOMAIN, src_user_id=src_user_id)
         admin_info = {
             KeyType.domain_id: domain_id,
             KeyType.random: bbclib.get_random_value(32)
@@ -211,120 +216,144 @@ class BBcAppClient:
         self.include_admin_info(dat, admin_info, None)
         return self._send_msg(dat)
 
-    def get_node_id(self):
+    def get_node_id(self, domain_id=None, src_user_id=None):
         """Get node_id of the connecting core node
 
+        Args:
+            domain_id(bytes): target domain_id
+            src_user_id(bytes): user_id of the sender
         Returns:
             bytes: query_id
         """
-        dat = self._make_message_structure(MsgType.REQUEST_GET_NODEID)
+        dat = self._make_message_structure(MsgType.REQUEST_GET_NODEID, domain_id=domain_id, src_user_id=src_user_id)
         return self._send_msg(dat)
 
-    def get_bbc_config(self):
+    def get_bbc_config(self, domain_id=None, src_user_id=None):
         """Get config file of bbc_core
 
         This method should be used by a system administrator.
 
+        Args:
+            domain_id(bytes): target domain_id
+            src_user_id(bytes): user_id of the sender
         Returns:
             bytes: query_id
         """
-        dat = self._make_message_structure(MsgType.REQUEST_GET_CONFIG)
+        dat = self._make_message_structure(MsgType.REQUEST_GET_CONFIG, domain_id=domain_id, src_user_id=src_user_id)
         admin_info = {
             KeyType.random: bbclib.get_random_value(32)
         }
         self.include_admin_info(dat, admin_info, None)
         return self._send_msg(dat)
 
-    def get_domain_list(self):
+    def get_domain_list(self, domain_id=None, src_user_id=None):
         """Get domain_id list in bbc_core
 
+        Args:
+            domain_id(bytes): target domain_id
+            src_user_id(bytes): user_id of the sender
         Returns:
             bytes: query_id
         """
-        dat = self._make_message_structure(MsgType.REQUEST_GET_DOMAINLIST)
+        dat = self._make_message_structure(MsgType.REQUEST_GET_DOMAINLIST, domain_id=domain_id, src_user_id=src_user_id)
         admin_info = {
             KeyType.random: bbclib.get_random_value(32)
         }
         self.include_admin_info(dat, admin_info, None)
         return self._send_msg(dat)
 
-    def get_user_list(self):
+    def get_user_list(self, domain_id=None, src_user_id=None):
         """Get user_ids in the domain that are connecting to the core node
 
+        Args:
+            domain_id(bytes): target domain_id
+            src_user_id(bytes): user_id of the sender
         Returns:
             bytes: query_id
         """
-        dat = self._make_message_structure(MsgType.REQUEST_GET_USERS)
+        dat = self._make_message_structure(MsgType.REQUEST_GET_USERS, domain_id=domain_id, src_user_id=src_user_id)
         admin_info = {
             KeyType.random: bbclib.get_random_value(32)
         }
         self.include_admin_info(dat, admin_info, None)
         return self._send_msg(dat)
 
-    def get_notification_list(self):
+    def get_notification_list(self, domain_id=None, src_user_id=None):
         """Get notification_list of the core node
 
+        Args:
+            domain_id(bytes): target domain_id
+            src_user_id(bytes): user_id of the sender
         Returns:
             bytes: query_id
         """
-        dat = self._make_message_structure(MsgType.REQUEST_GET_NOTIFICATION_LIST)
+        dat = self._make_message_structure(MsgType.REQUEST_GET_NOTIFICATION_LIST, domain_id=domain_id, src_user_id=src_user_id)
         admin_info = {
             KeyType.random: bbclib.get_random_value(32)
         }
         self.include_admin_info(dat, admin_info, None)
         return self._send_msg(dat)
 
-    def register_to_core(self, on_multiple_nodes=False):
+    def register_to_core(self, on_multiple_nodes=False, domain_id=None, src_user_id=None):
         """Register the client (user_id) to the core node
 
         After that, the client can communicate with the core node.
 
         Args:
             on_multiple_nodes (bool): True if this user_id is for multicast address
+            domain_id(bytes): target domain_id
+            src_user_id(bytes): user_id of the sender
         Returns:
             bool: True
         """
-        dat = self._make_message_structure(MsgType.REGISTER)
+        dat = self._make_message_structure(MsgType.REGISTER, domain_id=domain_id, src_user_id=src_user_id)
         if on_multiple_nodes:
             dat[KeyType.on_multinodes] = True
         self._send_msg(dat)
         return True
 
-    def unregister_from_core(self):
+    def unregister_from_core(self, domain_id=None, src_user_id=None):
         """Unregister and disconnect from the core node
 
+        Args:
+            domain_id(bytes): target domain_id
+            src_user_id(bytes): user_id of the sender
         Returns:
             bool: True
         """
-        dat = self._make_message_structure(MsgType.UNREGISTER)
+        dat = self._make_message_structure(MsgType.UNREGISTER, domain_id=domain_id, src_user_id=src_user_id)
         self._send_msg(dat)
         return True
 
-    def request_insert_completion_notification(self, asset_group_id):
+    def request_insert_completion_notification(self, asset_group_id, domain_id=None, src_user_id=None):
         """Request notification when a transaction has been inserted (as a copy of transaction)
 
         Args:
             asset_group_id (bytes): asset_group_id for requesting notification about insertion
+            domain_id(bytes): target domain_id
+            src_user_id(bytes): user_id of the sender
         Returns:
             bytes: query_id
         """
-        dat = self._make_message_structure(MsgType.REQUEST_INSERT_NOTIFICATION)
+        dat = self._make_message_structure(MsgType.REQUEST_INSERT_NOTIFICATION, domain_id=domain_id, src_user_id=src_user_id)
         dat[KeyType.asset_group_id] = asset_group_id[:self.id_length]
         return self._send_msg(dat)
 
-    def cancel_insert_completion_notification(self, asset_group_id):
+    def cancel_insert_completion_notification(self, asset_group_id, domain_id=None, src_user_id=None):
         """Cancel notification when a transaction has been inserted (as a copy of transaction)
 
         Args:
             asset_group_id (bytes): asset_group_id for requesting notification about insertion
+            domain_id(bytes): target domain_id
+            src_user_id(bytes): user_id of the sender
         Returns:
             bytes: query_id
         """
-        dat = self._make_message_structure(MsgType.CANCEL_INSERT_NOTIFICATION)
+        dat = self._make_message_structure(MsgType.CANCEL_INSERT_NOTIFICATION, domain_id=domain_id, src_user_id=src_user_id)
         dat[KeyType.asset_group_id] = asset_group_id[:self.id_length]
         return self._send_msg(dat)
 
-    def gather_signatures(self, txobj, reference_obj=None, destinations=None, anycast=False):
+    def gather_signatures(self, txobj, reference_obj=None, destinations=None, anycast=False, domain_id=None, src_user_id=None):
         """Request to gather signatures from the specified user_ids
 
         Args:
@@ -332,12 +361,14 @@ class BBcAppClient:
             reference_obj (BBcReference): BBcReference object that includes the information about destinations
             destinations (list): list of destination user_ids
             anycast (bool): True if this message is for anycasting
+            domain_id(bytes): target domain_id
+            src_user_id(bytes): user_id of the sender
         Returns:
             bytes: query_id
         """
         if reference_obj is None and destinations is None:
             return False
-        dat = self._make_message_structure(MsgType.REQUEST_GATHER_SIGNATURE)
+        dat = self._make_message_structure(MsgType.REQUEST_GATHER_SIGNATURE, domain_id=domain_id, src_user_id=src_user_id)
         dat[KeyType.transaction_data] = txobj.serialize()
         dat[KeyType.transaction_id] = txobj.transaction_id
         if anycast:
@@ -352,7 +383,8 @@ class BBcAppClient:
             dat[KeyType.destination_user_ids] = [dst[:self.id_length] for dst in destinations]
         return self._send_msg(dat)
 
-    def sendback_signature(self, dest_user_id=None, transaction_id=None, ref_index=-1, signature=None, query_id=None):
+    def sendback_signature(self, dest_user_id=None, transaction_id=None, ref_index=-1, signature=None, query_id=None,
+                           domain_id=None, src_user_id=None):
         """Send back the signed transaction to the source
 
         This method is called if the receiver (signer) approves the transaction.
@@ -363,14 +395,16 @@ class BBcAppClient:
             ref_index (int): (optional) which reference in transaction the signature is for
             signature (BBcSignature): Signature that expresses approval of the transaction with transaction_id
             query_id: The query_id that was in the received SIGN_REQUEST message
+            domain_id(bytes): target domain_id
+            src_user_id(bytes): user_id of the sender
         Returns:
             bytes: query_id
         """
-        dat = self._make_message_structure(MsgType.RESPONSE_SIGNATURE)
+        dat = self._make_message_structure(MsgType.RESPONSE_SIGNATURE, domain_id=domain_id, src_user_id=src_user_id)
         dat[KeyType.destination_user_id] = dest_user_id[:self.id_length]
         dat[KeyType.transaction_id] = transaction_id[:self.id_length]
         dat[KeyType.ref_index] = ref_index
-        if signature.format_type in [bbclib.BBcFormat.FORMAT_BSON, bbclib.BBcFormat.FORMAT_BSON_COMPRESS_BZ2]:
+        if signature.format_type != bbclib.BBcFormat.FORMAT_BINARY:
             dat[KeyType.signature] = bson.dumps(signature.serialize())
             dat[KeyType.transaction_data_format] = bbclib.BBcFormat.FORMAT_BSON
         else:
@@ -380,7 +414,8 @@ class BBcAppClient:
             dat[KeyType.query_id] = query_id
         return self._send_msg(dat)
 
-    def sendback_denial_of_sign(self, dest_user_id=None, transaction_id=None, reason_text=None, query_id=None):
+    def sendback_denial_of_sign(self, dest_user_id=None, transaction_id=None, reason_text=None, query_id=None,
+                                domain_id=None, src_user_id=None):
         """Send back the denial of sign the transaction
 
         This method is called if the receiver (signer) denies the transaction.
@@ -390,10 +425,12 @@ class BBcAppClient:
             transaction_id (bytes):
             reason_text (str): message to the requester about why the node denies the transaction
             query_id: The query_id that was in the received SIGN_REQUEST message
+            domain_id(bytes): target domain_id
+            src_user_id(bytes): user_id of the sender
         Returns:
             bytes: query_id
         """
-        dat = self._make_message_structure(MsgType.RESPONSE_SIGNATURE)
+        dat = self._make_message_structure(MsgType.RESPONSE_SIGNATURE, domain_id=domain_id, src_user_id=src_user_id)
         dat[KeyType.destination_user_id] = dest_user_id[:self.id_length]
         dat[KeyType.transaction_id] = transaction_id[:self.id_length]
         dat[KeyType.status] = EOTHER
@@ -402,21 +439,24 @@ class BBcAppClient:
             dat[KeyType.query_id] = query_id
         return self._send_msg(dat)
 
-    def insert_transaction(self, tx_obj):
+    def insert_transaction(self, tx_obj, domain_id=None, src_user_id=None):
         """Request to insert a legitimate transaction
 
         Args:
             tx_obj (BBcTransaction): Transaction object to insert
+            domain_id(bytes): target domain_id
+            src_user_id(bytes): user_id of the sender
         Returns:
             bytes: query_id
         """
         if tx_obj.transaction_id is None:
             tx_obj.digest()
-        dat = self._make_message_structure(MsgType.REQUEST_INSERT)
+        dat = self._make_message_structure(MsgType.REQUEST_INSERT, domain_id=domain_id, src_user_id=src_user_id)
         dat[KeyType.transaction_data] = tx_obj.serialize()
         return self._send_msg(dat)
 
-    def search_transaction_with_condition(self, asset_group_id=None, asset_id=None, user_id=None, direction=0, count=1):
+    def search_transaction_with_condition(self, asset_group_id=None, asset_id=None, user_id=None, direction=0, count=1,
+                                          domain_id=None, src_user_id=None):
         """Search transaction data by asset_group_id/asset_id/user_id
 
         If multiple conditions are specified, they are considered as AND condition.
@@ -427,10 +467,12 @@ class BBcAppClient:
             user_id (bytes): user_id in BBcAsset that means the owner of the asset
             direction (int): 0: descend, 1: ascend
             count (int): the number of transactions to retrieve
+            domain_id(bytes): target domain_id
+            src_user_id(bytes): user_id of the sender
         Returns:
             bytes: query_id
         """
-        dat = self._make_message_structure(MsgType.REQUEST_SEARCH_WITH_CONDITIONS)
+        dat = self._make_message_structure(MsgType.REQUEST_SEARCH_WITH_CONDITIONS, domain_id=domain_id, src_user_id=src_user_id)
         if asset_group_id is not None:
             dat[KeyType.asset_group_id] = asset_group_id[:self.id_length]
         if asset_id is not None:
@@ -441,19 +483,21 @@ class BBcAppClient:
         dat[KeyType.count] = count
         return self._send_msg(dat)
 
-    def search_transaction(self, transaction_id):
+    def search_transaction(self, transaction_id, domain_id=None, src_user_id=None):
         """Search request for a transaction
 
         Args:
             transaction_id (bytes): the target transaction to retrieve
+            domain_id(bytes): target domain_id
+            src_user_id(bytes): user_id of the sender
         Returns:
             bytes: query_id
         """
-        dat = self._make_message_structure(MsgType.REQUEST_SEARCH_TRANSACTION)
+        dat = self._make_message_structure(MsgType.REQUEST_SEARCH_TRANSACTION, domain_id=domain_id, src_user_id=src_user_id)
         dat[KeyType.transaction_id] = transaction_id[:self.id_length]
         return self._send_msg(dat)
 
-    def count_transactions(self, asset_group_id=None, asset_id=None, user_id=None):
+    def count_transactions(self, asset_group_id=None, asset_id=None, user_id=None, domain_id=None, src_user_id=None):
         """Count transactions that matches the given conditions
 
         If multiple conditions are specified, they are considered as AND condition.
@@ -462,10 +506,12 @@ class BBcAppClient:
             asset_group_id (bytes): asset_group_id in BBcEvent and BBcRelations
             asset_id (bytes): asset_id in BBcAsset
             user_id (bytes): user_id in BBcAsset that means the owner of the asset
+            domain_id(bytes): target domain_id
+            src_user_id(bytes): user_id of the sender
         Returns:
             int: the number of transactions
         """
-        dat = self._make_message_structure(MsgType.REQUEST_COUNT_TRANSACTIONS)
+        dat = self._make_message_structure(MsgType.REQUEST_COUNT_TRANSACTIONS, domain_id=domain_id, src_user_id=src_user_id)
         if asset_group_id is not None:
             dat[KeyType.asset_group_id] = asset_group_id
         if asset_id is not None:
@@ -474,7 +520,8 @@ class BBcAppClient:
             dat[KeyType.user_id] = user_id
         return self._send_msg(dat)
 
-    def traverse_transactions(self, transaction_id, asset_group_id=None, user_id=None, direction=1, hop_count=3):
+    def traverse_transactions(self, transaction_id, asset_group_id=None, user_id=None, direction=1, hop_count=3,
+                              domain_id=None, src_user_id=None):
         """Search request for transactions
 
         The method traverses the transaction graph in the ledger.
@@ -486,10 +533,12 @@ class BBcAppClient:
             user_id (bytes): user_id in BBcAsset that means the owner of the asset
             direction (int): 1:backforward, non-1:forward
             hop_count (int): hop count to traverse from the specified origin point
+            domain_id(bytes): target domain_id
+            src_user_id(bytes): user_id of the sender
         Returns:
             bytes: query_id
         """
-        dat = self._make_message_structure(MsgType.REQUEST_TRAVERSE_TRANSACTIONS)
+        dat = self._make_message_structure(MsgType.REQUEST_TRAVERSE_TRANSACTIONS, domain_id=domain_id, src_user_id=src_user_id)
         dat[KeyType.transaction_id] = transaction_id[:self.id_length]
         if asset_group_id is not None:
             dat[KeyType.asset_group_id] = asset_group_id[:self.id_length]
@@ -499,25 +548,30 @@ class BBcAppClient:
         dat[KeyType.hop_count] = hop_count
         return self._send_msg(dat)
 
-    def get_stats(self):
+    def get_stats(self, domain_id=None, src_user_id=None):
         """Get statistics of bbc_core
 
+        Args:
+            domain_id(bytes): target domain_id
+            src_user_id(bytes): user_id of the sender
         Returns:
             bytes: query_id
         """
-        dat = self._make_message_structure(MsgType.REQUEST_GET_STATS)
+        dat = self._make_message_structure(MsgType.REQUEST_GET_STATS, domain_id=domain_id, src_user_id=src_user_id)
         admin_info = {
             KeyType.random: bbclib.get_random_value(32)
         }
         self.include_admin_info(dat, admin_info, None)
         return self._send_msg(dat)
 
-    def get_stored_messages(self, user_id=None, async=False):
+    def get_stored_messages(self, user_id=None, async=False, domain_id=None, src_user_id=None):
         """Get statistics of bbc_core
 
         Args:
             user_id (bytes): user_id of the client
             async (bool): True if asynchronous response is required
+            domain_id(bytes): target domain_id
+            src_user_id(bytes): user_id of the sender
         Returns:
             bytes: query_id
         """
@@ -527,22 +581,24 @@ class BBcAppClient:
         if self.user_id is None:
             self.logger.error("user_id is not specified")
             return None
-        dat = self._make_message_structure(MsgType.REQUEST_GET_STORED_MESSAGES)
+        dat = self._make_message_structure(MsgType.REQUEST_GET_STORED_MESSAGES, domain_id=domain_id, src_user_id=src_user_id)
         if async:
             dat[KeyType.request_async] = True
         return self._send_msg(dat)
 
-    def send_message(self, msg, dst_user_id, is_anycast=False):
+    def send_message(self, msg, dst_user_id, is_anycast=False, domain_id=None, src_user_id=None):
         """Send a message to the specified user_id
 
         Args:
             msg (dict): message to send
             dst_user_id (bytes): destination user_id
-            is_anycast (bool): If true, the message is treated as an anycast message.
+            is_anycast (bool): If true, the message is treated as an anycast message
+            domain_id(bytes): target domain_id
+            src_user_id(bytes): user_id of the sender
         Returns:
             bytes: query_id
         """
-        dat = self._make_message_structure(MsgType.MESSAGE)
+        dat = self._make_message_structure(MsgType.MESSAGE, domain_id=domain_id, src_user_id=src_user_id)
         dat[KeyType.destination_user_id] = dst_user_id[:self.id_length]
         dat[KeyType.message] = msg
         if is_anycast:
@@ -712,7 +768,7 @@ class Callback:
             self.queue.put(dat)
             return
         format_type = dat[KeyType.transaction_data_format]
-        if format_type in [bbclib.BBcFormat.FORMAT_BSON, bbclib.BBcFormat.FORMAT_BSON_COMPRESS_BZ2]:
+        if format_type == bbclib.BBcFormat.FORMAT_BSON:
             sigdata = bson.loads(dat[KeyType.signature])
         else:
             sigdata = dat[KeyType.signature]

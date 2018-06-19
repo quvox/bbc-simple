@@ -18,6 +18,7 @@ import sys
 import os
 import binascii
 import hashlib
+import msgpack
 import bson
 import bz2
 import zlib
@@ -48,6 +49,9 @@ class BBcFormat:
     FORMAT_BSON = 1
     FORMAT_BSON_COMPRESS_BZ2 = 2
     FORMAT_BSON_COMPRESS_ZLIB = 3
+    FORMAT_MSGPACK = 4
+    FORMAT_MSGPACK_COMPRESS_BZ2 = 5
+    FORMAT_MSGPACK_COMPRESS_ZLIB = 6
 
 
 def set_error(code=-1, txt=""):
@@ -320,14 +324,27 @@ def verify_using_cross_ref(domain_id, transaction_id, transaction_base_digest, c
     Returns:
         bool: True if valid
     """
+    if format_type in [BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_MSGPACK_COMPRESS_BZ2]:
+        cross_ref_data = bz2.decompress(cross_ref_data)
+    elif format_type in [BBcFormat.FORMAT_BSON_COMPRESS_ZLIB, BBcFormat.FORMAT_MSGPACK_COMPRESS_ZLIB]:
+        cross_ref_data = zlib.decompress(cross_ref_data)
+
     if format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
         cross_ref_data = bson.loads(cross_ref_data)
         sigdata = bson.loads(sigdata)
+    if format_type in [BBcFormat.FORMAT_MSGPACK, BBcFormat.FORMAT_MSGPACK_COMPRESS_BZ2, BBcFormat.FORMAT_MSGPACK_COMPRESS_ZLIB]:
+        cross_ref_data = msgpack.loads(cross_ref_data)
+        sigdata = msgpack.loads(sigdata)
     cross = BBcCrossRef(deserialize=cross_ref_data, format_type=format_type)
     if cross.domain_id != domain_id or cross.transaction_id != transaction_id:
         return False
     if format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
         dat = bson.dumps({
+            "tx_base": transaction_base_digest,
+            "cross_ref": cross_ref_data,
+        })
+    elif format_type in [BBcFormat.FORMAT_MSGPACK, BBcFormat.FORMAT_MSGPACK_COMPRESS_BZ2, BBcFormat.FORMAT_MSGPACK_COMPRESS_ZLIB]:
+        dat = msgpack.dumps({
             "tx_base": transaction_base_digest,
             "cross_ref": cross_ref_data,
         })
@@ -484,7 +501,7 @@ class BBcSignature:
 
     def serialize(self):
         """Serialize this object"""
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
+        if self.format_type != BBcFormat.FORMAT_BINARY:
             return self.serialize_bson()
         if self.not_initialized:
             dat = bytearray(to_4byte(KeyType.NOT_INITIALIZED))
@@ -506,7 +523,7 @@ class BBcSignature:
         Returns:
             bool: True if successful
         """
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
+        if self.format_type != BBcFormat.FORMAT_BINARY:
             return self.deserialize_bson(data)
         ptr = 0
         try:
@@ -547,11 +564,20 @@ class BBcSignature:
             bool: True if successful
         """
         try:
-            self.key_type = bson_data['key_type']
+            if self.format_type in [BBcFormat.FORMAT_MSGPACK, BBcFormat.FORMAT_MSGPACK_COMPRESS_BZ2,
+                                    BBcFormat.FORMAT_MSGPACK_COMPRESS_ZLIB]:
+                self.key_type = bson_data[b'key_type']
+            else:
+                self.key_type = bson_data['key_type']
             if self.key_type == KeyType.NOT_INITIALIZED:
                 return True
-            pubkey = bson_data['pubkey']
-            signature = bson_data['signature']
+            if self.format_type in [BBcFormat.FORMAT_MSGPACK, BBcFormat.FORMAT_MSGPACK_COMPRESS_BZ2,
+                                    BBcFormat.FORMAT_MSGPACK_COMPRESS_ZLIB]:
+                pubkey = bson_data[b'pubkey']
+                signature = bson_data[b'signature']
+            else:
+                pubkey = bson_data['pubkey']
+                signature = bson_data['signature']
             self.add(signature=signature, pubkey=pubkey)
         except:
             return False
@@ -579,7 +605,7 @@ class BBcSignature:
 
 class BBcTransaction:
     """Transaction object"""
-    def __init__(self, version=0, deserialize=None, jsonload=None,
+    def __init__(self, version=0, deserialize=None,
                  format_type=BBcFormat.FORMAT_BINARY, id_length=DEFAULT_ID_LEN):
         self.format_type = format_type
         self.id_length = id_length
@@ -598,8 +624,6 @@ class BBcTransaction:
         self.asset_group_ids = dict()
         if deserialize is not None:
             self.deserialize(deserialize)
-        if jsonload is not None:
-            self.jsonload(jsonload)
 
     def __str__(self):
         ret =  "------- Dump of the transaction data ------\n"
@@ -703,7 +727,7 @@ class BBcTransaction:
 
     def serialize(self, for_id=False):
         """Serialize the whole parts"""
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
+        if self.format_type != BBcFormat.FORMAT_BINARY:
             return self.serialize_bson(for_id)
         dat = bytearray(to_4byte(self.version))
         dat.extend(to_8byte(self.timestamp))
@@ -767,7 +791,7 @@ class BBcTransaction:
         self.transaction_data = data[:]
         ptr = 0
         ptr, self.format_type = get_n_byte_int(ptr, 2, data)
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
+        if self.format_type != BBcFormat.FORMAT_BINARY:
             return self.deserialize_bson(data[2:])
         data_size = len(data)
         try:
@@ -874,21 +898,39 @@ class BBcTransaction:
             "relations": [rtn.serialize() for rtn in self.relations],
             "witness": witness,
         }
-        self.transaction_base_digest = hashlib.sha256(bson.dumps(tx_base)).digest()
+        if self.format_type in [BBcFormat.FORMAT_MSGPACK, BBcFormat.FORMAT_MSGPACK_COMPRESS_BZ2,
+                                BBcFormat.FORMAT_MSGPACK_COMPRESS_ZLIB]:
+            self.transaction_base_digest = hashlib.sha256(msgpack.dumps(tx_base)).digest()
+        else:
+            self.transaction_base_digest = hashlib.sha256(bson.dumps(tx_base)).digest()
         if for_id:
-            return bson.dumps({
-                "tx_base": self.transaction_base_digest,
-                "cross_ref": tx_crossref,
-            })
+            if self.format_type in [BBcFormat.FORMAT_MSGPACK, BBcFormat.FORMAT_MSGPACK_COMPRESS_BZ2,
+                                    BBcFormat.FORMAT_MSGPACK_COMPRESS_ZLIB]:
+                return msgpack.dumps({
+                    "tx_base": self.transaction_base_digest,
+                    "cross_ref": tx_crossref,
+                })
+            else:
+                return bson.dumps({
+                    "tx_base": self.transaction_base_digest,
+                    "cross_ref": tx_crossref,
+                })
         tx_base.update({"cross_ref": tx_crossref})
 
-        dat = bson.dumps({
-            "transaction_base": tx_base,
-            "signatures": [sig.serialize() for sig in self.signatures],
-        })
-        if self.format_type == BBcFormat.FORMAT_BSON_COMPRESS_BZ2:
+        if self.format_type in [BBcFormat.FORMAT_MSGPACK, BBcFormat.FORMAT_MSGPACK_COMPRESS_BZ2,
+                                BBcFormat.FORMAT_MSGPACK_COMPRESS_ZLIB]:
+            dat = msgpack.dumps({
+                "transaction_base": tx_base,
+                "signatures": [sig.serialize() for sig in self.signatures],
+            })
+        else:
+            dat = bson.dumps({
+                "transaction_base": tx_base,
+                "signatures": [sig.serialize() for sig in self.signatures],
+            })
+        if self.format_type in [BBcFormat.FORMAT_MSGPACK_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_BZ2]:
             dat = bz2.compress(dat, compresslevel=1)
-        elif self.format_type == BBcFormat.FORMAT_BSON_COMPRESS_ZLIB:
+        elif self.format_type in [BBcFormat.FORMAT_BSON_COMPRESS_ZLIB, BBcFormat.FORMAT_MSGPACK_COMPRESS_ZLIB]:
             dat = zlib.compress(dat)
         if no_header:
             return dat
@@ -903,50 +945,94 @@ class BBcTransaction:
         Returns:
             bool: True if successful
         """
-        if self.format_type == BBcFormat.FORMAT_BSON_COMPRESS_BZ2:
+        if self.format_type in [BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_MSGPACK_COMPRESS_BZ2]:
             data = bz2.decompress(data)
-        elif self.format_type == BBcFormat.FORMAT_BSON_COMPRESS_ZLIB:
+        elif self.format_type in [BBcFormat.FORMAT_BSON_COMPRESS_ZLIB, BBcFormat.FORMAT_MSGPACK_COMPRESS_ZLIB]:
             data = zlib.decompress(data)
-        bsondata = bson.loads(data)
-        tx_base = bsondata["transaction_base"]
-        self.version = tx_base["header"]["version"]
-        self.timestamp = tx_base["header"]["timestamp"]
-        self.id_length = tx_base["header"]["id_length"]
-        self.events = []
-        for evt_bson in tx_base["events"]:
-            evt = BBcEvent(format_type=BBcFormat.FORMAT_BSON, id_length=self.id_length)
-            evt.deserialize(evt_bson)
-            self.events.append(evt)
-        self.references = []
-        for refe_bson in tx_base["references"]:
-            refe = BBcReference(None, None, format_type=BBcFormat.FORMAT_BSON, id_length=self.id_length)
-            refe.deserialize(refe_bson)
-            self.references.append(refe)
-        self.relations = []
-        for rtn_bson in tx_base["relations"]:
-            rtn = BBcRelation(format_type=BBcFormat.FORMAT_BSON, id_length=self.id_length)
-            rtn.deserialize(rtn_bson)
-            self.relations.append(rtn)
-        wit = tx_base.get("witness", None)
-        if wit is None:
-            self.witness = None
-        else:
-            self.witness = BBcWitness(format_type=BBcFormat.FORMAT_BSON, id_length=self.id_length)
-            self.witness.transaction = self
-            self.witness.deserialize(wit)
-        cross_ref = tx_base.get("cross_ref", None)
-        if cross_ref is None:
-            self.cross_ref = None
-        else:
-            self.cross_ref = BBcCrossRef(format_type=BBcFormat.FORMAT_BSON)
-            self.cross_ref.deserialize(cross_ref)
 
-        self.signatures = []
-        if "signatures" in bsondata:
-            for sig_bson in bsondata["signatures"]:
-                sig = BBcSignature(format_type=BBcFormat.FORMAT_BSON)
-                sig.deserialize(sig_bson)
-                self.signatures.append(sig)
+        if self.format_type in [BBcFormat.FORMAT_MSGPACK, BBcFormat.FORMAT_MSGPACK_COMPRESS_BZ2,
+                                BBcFormat.FORMAT_MSGPACK_COMPRESS_ZLIB]:
+            datobj = msgpack.loads(data)
+            tx_base = datobj[b"transaction_base"]
+            self.version = tx_base[b"header"][b"version"]
+            self.timestamp = tx_base[b"header"][b"timestamp"]
+            self.id_length = tx_base[b"header"][b"id_length"]
+            self.events = []
+            for evt_bson in tx_base[b"events"]:
+                evt = BBcEvent(format_type=self.format_type, id_length=self.id_length)
+                evt.deserialize(evt_bson)
+                self.events.append(evt)
+            self.references = []
+            for refe_bson in tx_base[b"references"]:
+                refe = BBcReference(None, None, format_type=self.format_type, id_length=self.id_length)
+                refe.deserialize(refe_bson)
+                self.references.append(refe)
+            self.relations = []
+            for rtn_bson in tx_base[b"relations"]:
+                rtn = BBcRelation(format_type=self.format_type, id_length=self.id_length)
+                rtn.deserialize(rtn_bson)
+                self.relations.append(rtn)
+            wit = tx_base.get(b"witness", None)
+            if wit is None:
+                self.witness = None
+            else:
+                self.witness = BBcWitness(format_type=self.format_type, id_length=self.id_length)
+                self.witness.transaction = self
+                self.witness.deserialize(wit)
+            cross_ref = tx_base.get(b"cross_ref", None)
+            if cross_ref is None:
+                self.cross_ref = None
+            else:
+                self.cross_ref = BBcCrossRef(format_type=self.format_type)
+                self.cross_ref.deserialize(cross_ref)
+
+            self.signatures = []
+            if b"signatures" in datobj:
+                for sigobj in datobj[b"signatures"]:
+                    sig = BBcSignature(format_type=self.format_type)
+                    sig.deserialize(sigobj)
+                    self.signatures.append(sig)
+        else:
+            datobj = bson.loads(data)
+            tx_base = datobj["transaction_base"]
+            self.version = tx_base["header"]["version"]
+            self.timestamp = tx_base["header"]["timestamp"]
+            self.id_length = tx_base["header"]["id_length"]
+            self.events = []
+            for evt_bson in tx_base["events"]:
+                evt = BBcEvent(format_type=self.format_type, id_length=self.id_length)
+                evt.deserialize(evt_bson)
+                self.events.append(evt)
+            self.references = []
+            for refe_bson in tx_base["references"]:
+                refe = BBcReference(None, None, format_type=self.format_type, id_length=self.id_length)
+                refe.deserialize(refe_bson)
+                self.references.append(refe)
+            self.relations = []
+            for rtn_bson in tx_base["relations"]:
+                rtn = BBcRelation(format_type=self.format_type, id_length=self.id_length)
+                rtn.deserialize(rtn_bson)
+                self.relations.append(rtn)
+            wit = tx_base.get("witness", None)
+            if wit is None:
+                self.witness = None
+            else:
+                self.witness = BBcWitness(format_type=self.format_type, id_length=self.id_length)
+                self.witness.transaction = self
+                self.witness.deserialize(wit)
+            cross_ref = tx_base.get("cross_ref", None)
+            if cross_ref is None:
+                self.cross_ref = None
+            else:
+                self.cross_ref = BBcCrossRef(format_type=self.format_type)
+                self.cross_ref.deserialize(cross_ref)
+
+            self.signatures = []
+            if "signatures" in datobj:
+                for sigobj in datobj["signatures"]:
+                    sig = BBcSignature(format_type=self.format_type)
+                    sig.deserialize(sigobj)
+                    self.signatures.append(sig)
         self.digest()
         return True
 
@@ -978,212 +1064,6 @@ class BBcTransaction:
             return None
         sig.add(signature=s, pubkey=keypair.public_key)
         return sig
-
-    def jsondump(self):
-        """Dump the transaction in json format"""
-        jsontx = {}
-        if self.transaction_id is not None:
-            jsontx["transaction_id"] = bin2str_base64(self.transaction_id)
-        else:
-            jsontx["transaction_id"] = None
-        jsontx["version"] = self.version
-        jsontx["timestamp"] = self.timestamp
-        jsontx["Event"] = []
-        if len(self.events) > 0:
-            for i, evt in enumerate(self.events):
-                event = {}
-                event["asset_group_id"] =  bin2str_base64(evt.asset_group_id)
-                event["reference_indices"] = evt.reference_indices
-                event["mandatory_approvers"] = []
-                if len(evt.mandatory_approvers) > 0:
-                    for user in evt.mandatory_approvers:
-                        event["mandatory_approvers"].append(bin2str_base64(user))
-                event["option_approvers"] = []
-                if len(evt.option_approvers) > 0:
-                    for user in evt.option_approvers:
-                        event["option_approvers"].append(bin2str_base64(user))
-                event["option_approver_num_numerator"] = evt.option_approver_num_numerator
-                event["option_approver_num_denominator"] = evt.option_approver_num_denominator
-                event["Asset"] = {}
-                event["Asset"]["asset_id"] = bin2str_base64(evt.asset.asset_id)
-                if evt.asset.user_id is not None:
-                    event["Asset"]["user_id"] = bin2str_base64(evt.asset.user_id)
-                else:
-                    event["Asset"]["user_id"] = None
-                event["Asset"]["nonce"] = bin2str_base64(evt.asset.nonce)
-                event["Asset"]["file_size"] = evt.asset.asset_file_size
-                if evt.asset.asset_file_digest is not None:
-                    event["Asset"]["file_digest"] = bin2str_base64(evt.asset.asset_file_digest)
-                event["Asset"]["body_size"] = evt.asset.asset_body_size
-                event["Asset"]["body"] = evt.asset.asset_body.decode("utf-8")
-                jsontx["Event"].append(event)
-        jsontx["Reference"] = []
-        if len(self.references) > 0:
-            for i, refe in enumerate(self.references):
-                reference = {}
-                if refe.asset_group_id is not None and refe.transaction_id is not None:
-                    reference["asset_group_id"] = bin2str_base64(refe.asset_group_id)
-                    reference["transaction_id"] = bin2str_base64(refe.transaction_id)
-                    reference["event_index_in_ref"] = refe.event_index_in_ref
-                    reference["sig_index"] = refe.sig_indices
-                jsontx["Reference"].append(reference)
-        jsontx["Relation"] = []
-        if len(self.relations) > 0:
-            for i, rtn in enumerate(self.relations):
-                relation = {}
-                relation["asset_group_id"] = bin2str_base64(rtn.asset_group_id)
-                relation["Pointers"] = []
-                if len(rtn.pointers) > 0:
-                    for pt in rtn.pointers:
-                        pointer = {}
-                        if pt.transaction_id is not None:
-                            pointer["transaction_id"] = bin2str_base64(pt.transaction_id)
-                        else:
-                            pointer["transaction_id"] = None
-                        if pt.asset_id is not None:
-                            pointer["asset_id"] = bin2str_base64(pt.asset_id)
-                        else:
-                            pointer["asset_id"] = None
-                    relation["Pointers"].append(pointer)
-                relation["Asset"] = {}
-                if rtn.asset is not None:
-                    relation["Asset"]["asset_id"] = bin2str_base64(rtn.asset.asset_id)
-                    if rtn.asset.user_id is not None:
-                        relation["Asset"]["user_id"] = bin2str_base64(rtn.asset.user_id)
-                    else:
-                        relation["Asset"]["user_id"] = None
-                    relation["Asset"]["nonce"] = bin2str_base64(rtn.asset.nonce)
-                    relation["Asset"]["file_size"] = rtn.asset.asset_file_size
-                    if rtn.asset.asset_file_digest is not None:
-                        relation["Asset"]["file_digest"] = bin2str_base64(rtn.asset.asset_file_digest)
-                    relation["Asset"]["body_size"] = rtn.asset.asset_body_size
-                    relation["Asset"]["body"] = rtn.asset.asset_body.decode("utf-8")
-                jsontx["Relation"].append(relation)
-        jsontx["Witness"] = []
-        if self.witness is not None:
-            for i in range(len(self.witness.sig_indices)):
-                witt = {}
-                if self.witness.user_ids[i] is not None:
-                    witt["user_id"] = bin2str_base64(self.witness.user_ids[i])
-                    witt["sig_index"] = self.witness.sig_indices[i]
-                jsontx["Witness"].append(witt)
-        jsontx["Cross_Ref"] = []
-        if self.cross_ref is not None:
-            xref = {}
-            xref["domain_id"] = bin2str_base64(self.cross_ref.domain_id)
-            xref["transaction_id"] = bin2str_base64(self.cross_ref.transaction_id)
-            jsontx["Cross_Ref"].append(xref)
-        jsontx["Signature"] = []
-        if len(self.signatures) > 0:
-            for i, sig in enumerate(self.signatures):
-                signature = {}
-                if sig is None:
-                    signature = "*RESERVED*"
-                    continue
-                signature["type"] = sig.type
-                signature["signature"] = bin2str_base64(sig.signature)
-                signature["pubkey"] = bin2str_base64(sig.pubkey)
-                jsontx["Signature"].append(signature)
-        import json
-        return json.dumps(jsontx)
-
-    def jsonload(self, jsontx):
-        """Load the transaction in json format"""
-        import json
-        jsontx = json.loads(jsontx)
-        import binascii
-        if jsontx["transaction_id"] is not None:
-            self.transaction_id = binascii.a2b_base64(jsontx["transaction_id"])
-        else:
-            self.transaction_id = None
-        self.version = jsontx["version"]
-        self.timestamp = jsontx["timestamp"]
-        if len(jsontx["Event"]) > 0:
-            for i, event in enumerate(jsontx["Event"]):
-                evt = BBcEvent()
-                evt.asset_group_id =  binascii.a2b_base64(event["asset_group_id"])
-                evt.reference_indices = event["reference_indices"]
-                if len(event["mandatory_approvers"]) > 0:
-                    for user in event["mandatory_approvers"]:
-                        evt.mandatory_approvers.append(binascii.a2b_base64(user))
-                if len(event["option_approvers"]) > 0:
-                    for user in event["option_approvers"]:
-                        evt.option_approvers.append(binascii.a2b_base64(user))
-                evt.option_approver_num_numerator = event["option_approver_num_numerator"]
-                evt.option_approver_num_denominator = event["option_approver_num_denominator"]
-                evt.asset = BBcAsset(id_length=self.id_length)
-                evt.asset.asset_id = binascii.a2b_base64(event["Asset"]["asset_id"])
-                if event["Asset"]["user_id"] is not None:
-                    evt.asset.user_id = binascii.a2b_base64(event["Asset"]["user_id"])
-                else:
-                    evt.asset.user_id = None
-                evt.asset.nonce = binascii.a2b_base64(event["Asset"]["nonce"])
-                evt.asset.asset_file_size = event["Asset"]["file_size"]
-                if "file_digest" in event["Asset"].keys():
-                    evt.asset.asset_file_digest = binascii.a2b_base64(event["Asset"]["file_digest"])
-                evt.asset.asset_body_size = event["Asset"]["body_size"]
-                evt.asset.asset_body = event["Asset"]["body"].encode("utf-8")
-                self.add(event=evt)
-        if len(jsontx["Reference"]) > 0:
-            for i, reference in enumerate(jsontx["Reference"]):
-                refe = BBcReference(None, None)
-                if reference["asset_group_id"] is not None and reference["transaction_id"] is not None:
-                    refe.asset_group_id = binascii.a2b_base64(reference["asset_group_id"])
-                    refe.transaction_id = binascii.a2b_base64(reference["transaction_id"])
-                    refe.event_index_in_ref = reference["event_index_in_ref"]
-                    refe.sig_indices = reference["sig_index"]
-                self.add(reference=refe)
-        if len(jsontx["Relation"]) > 0:
-            for i, relation in enumerate(jsontx["Relation"]):
-                rtn = BBcRelation()
-                rtn.asset_group_id = binascii.a2b_base64(relation["asset_group_id"])
-                if len(relation["Pointers"]) > 0:
-                    for pointer in relation["Pointers"]:
-                        pt = BBcPointer()
-                        if pointer["transaction_id"] is not None:
-                            pt.transaction_id = binascii.a2b_base64(pointer["transaction_id"])
-                        else:
-                            pt.transaction_id = None
-                        if pointer["asset_id"] is not None:
-                            pt.asset_id = binascii.a2b_base64(pointer["asset_id"])
-                        else:
-                            pt.asset_id = None
-                    rtn.pointers.append(pt)
-                rtn.asset = BBcAsset(id_length=self.id_length)
-                if relation["Asset"] is not None:
-                    rtn.asset.asset_id = binascii.a2b_base64(relation["Asset"]["asset_id"])
-                    if relation["Asset"]["user_id"] is not None:
-                        rtn.asset.user_id = binascii.a2b_base64(relation["Asset"]["user_id"])
-                    else:
-                        rtn.asset.user_id = None
-                    rtn.asset.nonce = binascii.a2b_base64(relation["Asset"]["nonce"])
-                    rtn.asset.asset_file_size = relation["Asset"]["file_size"]
-                    if "file_digest" in relation["Asset"].keys():
-                        rtn.asset.asset_file_digest = binascii.a2b_base64(relation["Asset"]["file_digest"])
-                    rtn.asset.asset_body_size = relation["Asset"]["body_size"]
-                    rtn.asset.asset_body = relation["Asset"]["body"].encode("utf-8")
-                self.add(relation=rtn)
-        if jsontx["Witness"] is not None:
-            witness = BBcWitness()
-            for witt in jsontx["Witness"]:
-                if witt["user_id"] is not None:
-                    witness.user_ids.append(binascii.a2b_base64(witt["user_id"]))
-                    witness.sig_indices.append(witt["sig_index"])
-            self.add(witness=witness)
-        if jsontx["Cross_Ref"] is not None:
-            xref = jsontx["Cross_Ref"]
-            cross = BBcCrossRef(domain_id=binascii.a2b_base64(xref["domain_id"]),
-                                transaction_id=binascii.a2b_base64(xref["transaction_id"]))
-            self.add(cross_ref=cross)
-        if len(jsontx["Signature"]) > 0:
-            for i, signature in enumerate(self.signatures):
-                sig = BBcSignature()
-                if signature is not "*RESERVED*":
-                    sig.type = signature["type"]
-                    sig.signature = binascii.a2b_base64(signature["signature"])
-                    sig.pubkey = binascii.a2b_base64(signature["pubkey"])
-                self.signatures.append(sig)
-        return True
 
 
 class BBcEvent:
@@ -1247,7 +1127,7 @@ class BBcEvent:
         Returns:
             bytes: serialized binary data
         """
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
+        if self.format_type != BBcFormat.FORMAT_BINARY:
             return self.serialize_bson()
         dat = bytearray(to_bigint(self.asset_group_id, size=self.id_length))
         dat.extend(to_2byte(len(self.reference_indices)))
@@ -1273,7 +1153,7 @@ class BBcEvent:
         Returns:
             bool: True if successful
         """
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
+        if self.format_type != BBcFormat.FORMAT_BINARY:
             return self.deserialize_bson(data)
         ptr = 0
         data_size = len(data)
@@ -1333,17 +1213,27 @@ class BBcEvent:
         Returns:
             bool: True if successful
         """
-        self.asset_group_id = data.get('asset_group_id', None)
-        self.reference_indices = data.get('reference_indices', [])
-        self.mandatory_approvers = data.get('mandatory_approvers', [])
-        self.option_approver_num_numerator = data.get('option_approver_num_numerator', 0)
-        self.option_approver_num_denominator = data.get('option_approver_num_denominator', 0)
-        self.option_approvers = data.get('option_approvers', [])
-        asset = data.get('asset', None)
+        if self.format_type in [BBcFormat.FORMAT_MSGPACK, BBcFormat.FORMAT_MSGPACK_COMPRESS_BZ2,
+                                BBcFormat.FORMAT_MSGPACK_COMPRESS_ZLIB]:
+            self.asset_group_id = data.get(b'asset_group_id', None)
+            self.reference_indices = data.get(b'reference_indices', [])
+            self.mandatory_approvers = data.get(b'mandatory_approvers', [])
+            self.option_approver_num_numerator = data.get(b'option_approver_num_numerator', 0)
+            self.option_approver_num_denominator = data.get(b'option_approver_num_denominator', 0)
+            self.option_approvers = data.get(b'option_approvers', [])
+            asset = data.get(b'asset', None)
+        else:
+            self.asset_group_id = data.get('asset_group_id', None)
+            self.reference_indices = data.get('reference_indices', [])
+            self.mandatory_approvers = data.get('mandatory_approvers', [])
+            self.option_approver_num_numerator = data.get('option_approver_num_numerator', 0)
+            self.option_approver_num_denominator = data.get('option_approver_num_denominator', 0)
+            self.option_approvers = data.get('option_approvers', [])
+            asset = data.get('asset', None)
         if asset is None:
             self.asset = None
         else:
-            self.asset = BBcAsset(format_type=BBcFormat.FORMAT_BSON)
+            self.asset = BBcAsset(format_type=self.format_type)
             self.asset.deserialize_bson(asset)
         return True
 
@@ -1421,7 +1311,7 @@ class BBcReference:
         Returns:
             bytes: serialized binary data
         """
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
+        if self.format_type != BBcFormat.FORMAT_BINARY:
             return self.serialize_bson()
         dat = bytearray(to_bigint(self.asset_group_id, size=self.id_length))
         dat.extend(to_bigint(self.transaction_id, size=self.id_length))
@@ -1439,7 +1329,7 @@ class BBcReference:
         Returns:
             bool: True if successful
         """
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
+        if self.format_type != BBcFormat.FORMAT_BINARY:
             return self.deserialize_bson(data)
         ptr = 0
         data_size = len(data)
@@ -1475,10 +1365,17 @@ class BBcReference:
         Returns:
             bool: True if successful
         """
-        self.asset_group_id = data.get('asset_group_id', None)
-        self.transaction_id = data.get('transaction_id', None)
-        self.event_index_in_ref = data.get('event_index_in_ref', 0)
-        self.sig_indices = data.get('sig_indices', [])
+        if self.format_type in [BBcFormat.FORMAT_MSGPACK, BBcFormat.FORMAT_MSGPACK_COMPRESS_BZ2,
+                                BBcFormat.FORMAT_MSGPACK_COMPRESS_ZLIB]:
+            self.asset_group_id = data.get(b'asset_group_id', None)
+            self.transaction_id = data.get(b'transaction_id', None)
+            self.event_index_in_ref = data.get(b'event_index_in_ref', 0)
+            self.sig_indices = data.get(b'sig_indices', [])
+        else:
+            self.asset_group_id = data.get('asset_group_id', None)
+            self.transaction_id = data.get('transaction_id', None)
+            self.event_index_in_ref = data.get('event_index_in_ref', 0)
+            self.sig_indices = data.get('sig_indices', [])
         return True
 
 
@@ -1523,7 +1420,7 @@ class BBcRelation:
         Returns:
             bytes: serialized binary data
         """
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
+        if self.format_type != BBcFormat.FORMAT_BINARY:
             return self.serialize_bson()
         dat = bytearray(to_bigint(self.asset_group_id, size=self.id_length))
         dat.extend(to_2byte(len(self.pointers)))
@@ -1547,7 +1444,7 @@ class BBcRelation:
         Returns:
             bool: True if successful
         """
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
+        if self.format_type != BBcFormat.FORMAT_BINARY:
             return self.deserialize_bson(data)
         ptr = 0
         data_size = len(data)
@@ -1595,16 +1492,25 @@ class BBcRelation:
         Returns:
             bool: True if successful
         """
-        self.asset_group_id = data.get('asset_group_id', None)
-        for ptr_bson in data.get('pointers', []):
-            ptr = BBcPointer(format_type=BBcFormat.FORMAT_BSON, id_length=self.id_length)
-            ptr.deserialize(ptr_bson)
-            self.pointers.append(ptr)
-        asset = data.get('asset', None)
+        if self.format_type in [BBcFormat.FORMAT_MSGPACK, BBcFormat.FORMAT_MSGPACK_COMPRESS_BZ2,
+                                BBcFormat.FORMAT_MSGPACK_COMPRESS_ZLIB]:
+            self.asset_group_id = data.get(b'asset_group_id', None)
+            for ptr_bson in data.get(b'pointers', []):
+                ptr = BBcPointer(format_type=self.format_type, id_length=self.id_length)
+                ptr.deserialize(ptr_bson)
+                self.pointers.append(ptr)
+            asset = data.get(b'asset', None)
+        else:
+            self.asset_group_id = data.get('asset_group_id', None)
+            for ptr_bson in data.get('pointers', []):
+                ptr = BBcPointer(format_type=self.format_type, id_length=self.id_length)
+                ptr.deserialize(ptr_bson)
+                self.pointers.append(ptr)
+            asset = data.get('asset', None)
         if asset is None:
             self.asset = None
         else:
-            self.asset = BBcAsset(format_type=BBcFormat.FORMAT_BSON, id_length=self.id_length)
+            self.asset = BBcAsset(format_type=self.format_type, id_length=self.id_length)
             self.asset.deserialize_bson(asset)
         return True
 
@@ -1641,7 +1547,7 @@ class BBcPointer:
         Returns:
             bytes: serialized binary data
         """
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
+        if self.format_type != BBcFormat.FORMAT_BINARY:
             return self.serialize_bson()
         dat = bytearray(to_bigint(self.transaction_id, size=self.id_length))
         if self.asset_id is None:
@@ -1659,7 +1565,7 @@ class BBcPointer:
         Returns:
             bool: True if successful
         """
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
+        if self.format_type != BBcFormat.FORMAT_BINARY:
             return self.deserialize_bson(data)
         ptr = 0
         try:
@@ -1688,8 +1594,13 @@ class BBcPointer:
         Returns:
             bool: True if successful
         """
-        self.transaction_id = data.get('transaction_id', None)
-        self.asset_id = data.get('asset_id', None)
+        if self.format_type in [BBcFormat.FORMAT_MSGPACK, BBcFormat.FORMAT_MSGPACK_COMPRESS_BZ2,
+                                BBcFormat.FORMAT_MSGPACK_COMPRESS_ZLIB]:
+            self.transaction_id = data.get(b'transaction_id', None)
+            self.asset_id = data.get(b'asset_id', None)
+        else:
+            self.transaction_id = data.get('transaction_id', None)
+            self.asset_id = data.get('asset_id', None)
         return True
 
 
@@ -1734,7 +1645,7 @@ class BBcWitness:
         Returns:
             bytes: serialized binary data
         """
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
+        if self.format_type != BBcFormat.FORMAT_BINARY:
             return self.serialize_bson()
         dat = bytearray(to_2byte(len(self.sig_indices)))
         for i in range(len(self.sig_indices)):
@@ -1750,7 +1661,7 @@ class BBcWitness:
         Returns:
             bool: True if successful
         """
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
+        if self.format_type != BBcFormat.FORMAT_BINARY:
             return self.deserialize_bson(data)
         ptr = 0
         data_size = len(data)
@@ -1784,8 +1695,13 @@ class BBcWitness:
         Returns:
             bool: True if successful
         """
-        self.user_ids = data.get('user_ids', [])
-        self.sig_indices = data.get('sig_indices', [])
+        if self.format_type in [BBcFormat.FORMAT_MSGPACK, BBcFormat.FORMAT_MSGPACK_COMPRESS_BZ2,
+                                BBcFormat.FORMAT_MSGPACK_COMPRESS_ZLIB]:
+            self.user_ids = data.get(b'user_ids', [])
+            self.sig_indices = data.get(b'sig_indices', [])
+        else:
+            self.user_ids = data.get('user_ids', [])
+            self.sig_indices = data.get('sig_indices', [])
         for i, user_id in enumerate(self.user_ids):
             self.transaction.get_sig_index(user_id[:self.id_length])
         return True
@@ -1877,7 +1793,7 @@ class BBcAsset:
         Returns:
             bytes: serialized binary data
         """
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
+        if self.format_type != BBcFormat.FORMAT_BINARY:
             return self.serialize_bson(for_digest_calculation=for_digest_calculation)
         if for_digest_calculation:
             dat = bytearray(to_bigint(self.user_id, size=self.id_length))
@@ -1925,7 +1841,7 @@ class BBcAsset:
         Returns:
             bool: True if successful
         """
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
+        if self.format_type != BBcFormat.FORMAT_BINARY:
             return self.deserialize_bson(data)
         ptr = 0
         try:
@@ -1984,13 +1900,23 @@ class BBcAsset:
         Returns:
             bool: True if successful
         """
-        self.asset_id = data.get('asset_id', None)
-        self.user_id = data.get('user_id', None)
-        self.nonce = data.get('nonce', None)
-        self.asset_file_size = data.get('asset_file_size', 0)
-        self.asset_file_digest = data.get('asset_file_digest', None)
-        self.asset_body_size = data.get('asset_body_size', 0)
-        self.asset_body = data.get('asset_body', None)
+        if self.format_type in [BBcFormat.FORMAT_MSGPACK, BBcFormat.FORMAT_MSGPACK_COMPRESS_BZ2,
+                                BBcFormat.FORMAT_MSGPACK_COMPRESS_ZLIB]:
+            self.asset_id = data.get(b'asset_id', None)
+            self.user_id = data.get(b'user_id', None)
+            self.nonce = data.get(b'nonce', None)
+            self.asset_file_size = data.get(b'asset_file_size', 0)
+            self.asset_file_digest = data.get(b'asset_file_digest', None)
+            self.asset_body_size = data.get(b'asset_body_size', 0)
+            self.asset_body = data.get(b'asset_body', None)
+        else:
+            self.asset_id = data.get('asset_id', None)
+            self.user_id = data.get('user_id', None)
+            self.nonce = data.get('nonce', None)
+            self.asset_file_size = data.get('asset_file_size', 0)
+            self.asset_file_digest = data.get('asset_file_digest', None)
+            self.asset_body_size = data.get('asset_body_size', 0)
+            self.asset_body = data.get('asset_body', None)
         return True
 
 
@@ -2015,7 +1941,7 @@ class BBcCrossRef:
         Returns:
             bytes: serialized binary data
         """
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
+        if self.format_type != BBcFormat.FORMAT_BINARY:
             return self.serialize_bson()
         dat = bytearray(to_bigint(self.domain_id))
         dat.extend(to_bigint(self.transaction_id))
@@ -2029,7 +1955,7 @@ class BBcCrossRef:
         Returns:
             bool: True if successful
         """
-        if self.format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
+        if self.format_type != BBcFormat.FORMAT_BINARY:
             return self.deserialize_bson(data)
         ptr = 0
         try:
@@ -2054,8 +1980,13 @@ class BBcCrossRef:
         Returns:
             bool: True if successful
         """
-        self.domain_id = data.get('domain_id', None)
-        self.transaction_id = data.get('transaction_id', None)
+        if self.format_type in [BBcFormat.FORMAT_MSGPACK, BBcFormat.FORMAT_MSGPACK_COMPRESS_BZ2,
+                                BBcFormat.FORMAT_MSGPACK_COMPRESS_ZLIB]:
+            self.domain_id = data.get(b'domain_id', None)
+            self.transaction_id = data.get(b'transaction_id', None)
+        else:
+            self.domain_id = data.get('domain_id', None)
+            self.transaction_id = data.get('transaction_id', None)
         return True
 
 

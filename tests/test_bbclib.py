@@ -9,6 +9,7 @@ from bbc_simple.core.bbclib import BBcTransaction, BBcEvent, BBcReference, BBcWi
 from bbc_simple.core import bbclib
 
 ID_LENGTH = 8
+CURVE_TYPE = bbclib.KeyType.ECDSA_SECP256k1
 
 user_id = bbclib.get_new_id("user_id_test1")[:ID_LENGTH]
 user_id2 = bbclib.get_new_id("user_id_test2")[:ID_LENGTH]
@@ -16,9 +17,9 @@ domain_id = bbclib.get_new_id("testdomain")[:ID_LENGTH]
 asset_group_id = bbclib.get_new_id("asset_group_1")[:ID_LENGTH]
 transaction1_id = bbclib.get_new_id("transaction_1")
 transaction2_id = bbclib.get_new_id("transaction_2")
-keypair1 = KeyPair()
+keypair1 = KeyPair(curvetype=CURVE_TYPE)
 keypair1.generate()
-keypair2 = KeyPair()
+keypair2 = KeyPair(curvetype=CURVE_TYPE)
 keypair2.generate()
 
 transaction1 = None
@@ -90,7 +91,7 @@ class TestBBcLib(object):
         witness = BBcWitness(id_length=ID_LENGTH)
         transaction1.add(witness=witness)
 
-        sig = transaction1.sign(key_type=KeyType.ECDSA_SECP256k1, private_key=keypair1.private_key,
+        sig = transaction1.sign(key_type=CURVE_TYPE, private_key=keypair1.private_key,
                                 public_key=keypair1.public_key)
         if sig is None:
             print(bbclib.error_text)
@@ -138,7 +139,7 @@ class TestBBcLib(object):
         dummy_cross_ref3 = BBcCrossRef(domain_id=domain_id, transaction_id=transaction1_id)
         transaction2.add(cross_ref=dummy_cross_ref3)
 
-        sig = transaction2.sign(key_type=KeyType.ECDSA_SECP256k1, private_key=keypair1.private_key,
+        sig = transaction2.sign(key_type=CURVE_TYPE, private_key=keypair1.private_key,
                                 public_key=keypair1.public_key)
         if sig is None:
             print(bbclib.error_text)
@@ -165,13 +166,13 @@ class TestBBcLib(object):
         dummy_cross_ref = BBcCrossRef(domain_id=domain_id, transaction_id=transaction1_id)
         transaction2.add(cross_ref=dummy_cross_ref)
 
-        sig = transaction1.sign(key_type=KeyType.ECDSA_SECP256k1,
+        sig = transaction1.sign(key_type=CURVE_TYPE,
                                 private_key=keypair2.private_key, public_key=keypair2.public_key)
         if sig is None:
             print(bbclib.error_text)
             assert sig
         reference.add_signature(user_id=user_id2, signature=sig)
-        sig = transaction1.sign(key_type=KeyType.ECDSA_SECP256k1,
+        sig = transaction1.sign(key_type=CURVE_TYPE,
                                 private_key=keypair1.private_key, public_key=keypair1.public_key)
         if sig is None:
             print(bbclib.error_text)
@@ -191,14 +192,14 @@ class TestBBcLib(object):
         witness.add_witness(user_id)
         witness.add_witness(user_id2)
 
-        sig = transaction1.sign(key_type=KeyType.ECDSA_SECP256k1,
+        sig = transaction1.sign(key_type=CURVE_TYPE,
                                 private_key=keypair2.private_key, public_key=keypair2.public_key)
         if sig is None:
             print(bbclib.error_text)
             assert sig
         witness.add_signature(user_id=user_id2, signature=sig)
 
-        sig = transaction1.sign(key_type=KeyType.ECDSA_SECP256k1,
+        sig = transaction1.sign(key_type=CURVE_TYPE,
                                 private_key=keypair1.private_key, public_key=keypair1.public_key)
         if sig is None:
             print(bbclib.error_text)
@@ -209,21 +210,23 @@ class TestBBcLib(object):
 
     def test_06_transaction_with_relation_and_witness(self):
         print("\n-----", sys._getframe().f_code.co_name, "-----")
+        global transaction1
         transaction1 = bbclib.make_transaction(relation_num=1, witness=True, id_length=8)
         bbclib.add_relation_asset(transaction1, relation_idx=0, asset_group_id=asset_group_id,
                                   user_id=user_id, asset_body=b'ccccc')
         bbclib.add_relation_pointer(transaction1, 0, ref_transaction_id=transaction2.digest())
         transaction1.witness.add_witness(user_id)
         transaction1.witness.add_witness(user_id2)
+        transaction1.digest()
 
-        sig = transaction1.sign(key_type=KeyType.ECDSA_SECP256k1, private_key=keypair2.private_key,
+        sig = transaction1.sign(key_type=CURVE_TYPE, private_key=keypair2.private_key,
                                 public_key=keypair2.public_key)
         if sig is None:
             print(bbclib.error_text)
             assert sig
         transaction1.witness.add_signature(user_id=user_id2, signature=sig)
 
-        sig = transaction1.sign(key_type=KeyType.ECDSA_SECP256k1, private_key=keypair1.private_key,
+        sig = transaction1.sign(key_type=CURVE_TYPE, private_key=keypair1.private_key,
                                 public_key=keypair1.public_key)
         if sig is None:
             print(bbclib.error_text)
@@ -234,8 +237,9 @@ class TestBBcLib(object):
 
     def test_07_proof(self):
         print("\n-----", sys._getframe().f_code.co_name, "-----")
-
+        global transaction1
         digest = transaction1.digest()
+        print(transaction1)
         ret = transaction1.signatures[0].verify(digest)
         print("Proof result:", ret)
         if not ret:
