@@ -14,7 +14,7 @@ monkey.patch_all()
 import sys
 sys.path.append("../../")
 
-from bbc_simple.core import bbc_app
+from bbc_simple.core import bbc_app_sync as bbc_app
 from bbc_simple.core.message_key_types import KeyType
 from bbc_simple.logger.fluent_logger import initialize_logger
 
@@ -79,8 +79,7 @@ def domain_setup():
     json_data = request.json
     domain_id = binascii.a2b_hex(json_data.get('domain_id'))
     config = json_data.get('config', None)
-    qid = bbcapp.domain_setup(domain_id, config=config)
-    retmsg = bbcapp.callback.sync_by_queryid(qid, timeout=5)
+    retmsg = bbcapp.domain_setup(domain_id, config=config)
     if retmsg is None:
         return jsonify({'error': 'No response'}), 400
     msg = {'result': retmsg[KeyType.result]}
@@ -97,8 +96,7 @@ def domain_close(domain_id_str=None):
         domain_id = binascii.a2b_hex(domain_id_str)
     except:
         return jsonify({'error': 'invalid request'}), 500
-    qid = bbcapp.domain_close(domain_id)
-    retmsg = bbcapp.callback.sync_by_queryid(qid, timeout=5)
+    retmsg = bbcapp.domain_close(domain_id)
     if retmsg is None:
         return jsonify({'error': 'No response'}), 400
     msg = {'result': retmsg[KeyType.result]}
@@ -116,8 +114,7 @@ def get_node_id(domain_id_str=None):
         bbcapp.set_domain_id(domain_id)
     except:
         return jsonify({'error': 'invalid request'}), 500
-    qid = bbcapp.get_node_id()
-    retmsg = bbcapp.callback.sync_by_queryid(qid, timeout=5)
+    retmsg = bbcapp.get_node_id()
     if retmsg is None:
         return jsonify({'error': 'No response'}), 400
     node_id = retmsg[KeyType.node_id].hex()
@@ -129,8 +126,7 @@ def get_node_id(domain_id_str=None):
 @http.route('/get_bbc_config', methods=['GET', 'OPTIONS'])
 @crossdomain(origin='*', headers=['Content-Type'])
 def get_bbc_config():
-    qid = bbcapp.get_bbc_config()
-    retmsg = bbcapp.callback.sync_by_queryid(qid, timeout=5)
+    retmsg = bbcapp.get_bbc_config()
     if retmsg is None:
         return jsonify({'error': 'No response'}), 400
     config = retmsg[KeyType.bbc_configuration].decode()
@@ -142,8 +138,7 @@ def get_bbc_config():
 @http.route('/get_domain_list', methods=['GET', 'OPTIONS'])
 @crossdomain(origin='*', headers=['Content-Type'])
 def get_domain_list():
-    qid = bbcapp.get_domain_list()
-    retmsg = bbcapp.callback.sync_by_queryid(qid, timeout=5)
+    retmsg = bbcapp.get_domain_list()
     if retmsg is None:
         return jsonify({'error': 'No response'}), 400
     domain_list = [i.hex() for i in bbc_app.parse_one_level_list(retmsg[KeyType.domain_list])]
@@ -160,8 +155,7 @@ def get_user_list(domain_id_str=None):
         bbcapp.set_domain_id(domain_id)
     except:
         return jsonify({'error': 'invalid request'}), 500
-    qid = bbcapp.get_user_list()
-    retmsg = bbcapp.callback.sync_by_queryid(qid, timeout=5)
+    retmsg = bbcapp.get_user_list()
     if retmsg is None:
         return jsonify({'error': 'No response'}), 400
     user_list = [i.hex() for i in bbc_app.parse_one_level_list(retmsg[KeyType.user_list])]
@@ -178,8 +172,7 @@ def get_notification_list(domain_id_str=None):
         bbcapp.set_domain_id(domain_id)
     except:
         return jsonify({'error': 'invalid request'}), 500
-    qid = bbcapp.get_notification_list()
-    retmsg = bbcapp.callback.sync_by_queryid(qid, timeout=5)
+    retmsg = bbcapp.get_notification_list()
     if retmsg is None:
         return jsonify({'error': 'No response'}), 400
     tmpdict = bbc_app.parse_two_level_dict(retmsg[KeyType.notification_list])
@@ -196,8 +189,7 @@ def get_notification_list(domain_id_str=None):
 @http.route('/get_stats', methods=['GET', 'OPTIONS'])
 @crossdomain(origin='*', headers=['Content-Type'])
 def get_stats():
-    qid = bbcapp.get_stats()
-    retmsg = bbcapp.callback.sync_by_queryid(qid, timeout=5)
+    retmsg = bbcapp.get_stats()
     if retmsg is None:
         return jsonify({'error': 'No response'}), 400
     stats = dict()

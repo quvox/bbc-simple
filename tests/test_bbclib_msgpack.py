@@ -28,8 +28,9 @@ event1 = None
 event2 = None
 transaction2 = None
 asset_content = b'abcdefg'
-fmt = bbclib.BBcFormat.FORMAT_BSON_COMPRESS_BZ2
-fmt = bbclib.BBcFormat.FORMAT_BSON_COMPRESS_ZLIB
+fmt = bbclib.BBcFormat.FORMAT_MSGPACK
+#fmt = bbclib.BBcFormat.FORMAT_MSGPACK_COMPRESS_BZ2
+#fmt = bbclib.BBcFormat.FORMAT_MSGPACK_COMPRESS_ZLIB
 
 print("\n")
 print("private_key:", binascii.b2a_hex(keypair1.private_key))
@@ -56,8 +57,9 @@ class TestBBcLib(object):
         dat = asset1.serialize()
         print("Digest:", binascii.b2a_hex(digest))
         print("Serialized data:", dat)
-        asset_tmp = BBcAsset(format_type=fmt)
-        asset_tmp.deserialize(dat)
+        asset_tmp = BBcAsset(format_type=bbclib.BBcFormat.FORMAT_BSON)  # 中途半端にMSGPACKにするとハマるのでBSONを指定しておく
+        asset_tmp.deserialize_bson(dat)
+        print(asset_tmp)
         print("body_len:", asset_tmp.asset_body_size)
         if asset_tmp.asset_body_size > 0:
             print("body:", binascii.b2a_hex(asset_tmp.asset_body))
@@ -75,7 +77,7 @@ class TestBBcLib(object):
         # --- for checking serialization function ---
         dat = event1.serialize()
         print("Serialized data:", dat)
-        event_tmp = BBcEvent(format_type=fmt)
+        event_tmp = BBcEvent(format_type=bbclib.BBcFormat.FORMAT_BSON)  # 中途半端にMSGPACKにするとハマるのでBSONを指定しておく
         event_tmp.deserialize(dat)
         print("mandatory_approvers:", [binascii.b2a_hex(d) for d in event_tmp.mandatory_approvers])
         print("asset_id:", binascii.b2a_hex(event_tmp.asset.asset_id))

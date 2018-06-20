@@ -14,7 +14,8 @@ import subprocess
 import sys
 
 sys.path.append("../../")
-from bbc_simple.core import bbc_app, bbclib
+from bbc_simple.core import bbclib
+from bbc_simple.core import bbc_app_sync as bbc_app
 from bbc_simple.core.message_key_types import KeyType
 from bbc_simple.logger.fluent_logger import initialize_logger
 
@@ -104,8 +105,7 @@ async def domain_setup(request):
 
     domain_id = binascii.a2b_hex(json_data.get('domain_id'))
     config = json_data.get('config', None)
-    qid = bbcapp.domain_setup(domain_id, config=config)
-    retmsg = bbcapp.callback.sync_by_queryid(qid, timeout=5)
+    retmsg = bbcapp.domain_setup(domain_id, config=config)
     if retmsg is None:
         return json_response({'error': 'No response'}, 400)
         # return jsonify({'error': 'No response'}), 400
@@ -124,8 +124,7 @@ async def domain_close(request):
         domain_id = binascii.a2b_hex(domain_id_str)
     except:
         return json_response({'error': 'invalid request'}, 500)
-    qid = bbcapp.domain_close(domain_id)
-    retmsg = bbcapp.callback.sync_by_queryid(qid, timeout=5)
+    retmsg = bbcapp.domain_close(domain_id)
     if retmsg is None:
         return json_response({'error': 'No response'}, 400)
 
@@ -184,8 +183,7 @@ async def insert_transaction(request):
     txobj = bbclib.BBcTransaction(format_type=bbclib.BBcFormat.FORMAT_BSON)
     txdat = base64.b64decode(json_data.get('transaction_bson'))
     txobj.deserialize_bson(txdat)
-    qid = bbcapp.insert_transaction(txobj)
-    retmsg = bbcapp.callback.sync_by_queryid(qid, timeout=5)
+    retmsg = bbcapp.insert_transaction(txobj)
     if retmsg is None:
         return json_response({'error': 'No response'}, 400)
     bbcapp.unregister_from_core()
@@ -208,8 +206,7 @@ async def search_transaction(request):
         txid = get_id_binary(json_data, 'transaction_id')
     except:
         return json_response({'error': 'invalid request'}, 500)
-    qid = bbcapp.search_transaction(txid)
-    retmsg = bbcapp.callback.sync_by_queryid(qid, timeout=5)
+    retmsg = bbcapp.search_transaction(txid)
     if retmsg is None:
         return json_response({'error': 'No response'}, 400)
 
@@ -237,9 +234,8 @@ async def search_transaction_with_condition(request):
         count = json_data.get('count', 1)
     except:
         return json_response({'error': 'invalid request'}, 500)
-    qid = bbcapp.search_transaction_with_condition(asset_group_id=asset_group_id, asset_id=asset_id,
-                                                   user_id=user_id, count=count)
-    retmsg = bbcapp.callback.sync_by_queryid(qid, timeout=5)
+    retmsg = bbcapp.search_transaction_with_condition(asset_group_id=asset_group_id, asset_id=asset_id,
+                                                      user_id=user_id, count=count)
     if retmsg is None:
         return json_response({'error': 'No response'}, 400)
 
@@ -278,9 +274,8 @@ async def traverse_transactions(request):
         hop_count = json_data.get('hop_count', 3)
     except:
         return json_response({'error': 'invalid request'}, 500)
-    qid = bbcapp.traverse_transactions(transaction_id=transaction_id, asset_group_id=asset_group_id, user_id=user_id,
-                                       direction=direction, hop_count=hop_count)
-    retmsg = bbcapp.callback.sync_by_queryid(qid, timeout=5)
+    retmsg = bbcapp.traverse_transactions(transaction_id=transaction_id, asset_group_id=asset_group_id, user_id=user_id,
+                                          direction=direction, hop_count=hop_count)
     if retmsg is None:
         return json_response({'error': 'No response'}, 400)
     elif KeyType.reason in retmsg:

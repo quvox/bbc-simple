@@ -73,7 +73,7 @@ def parse_two_level_dict(dat):
 class BBcAppClient:
     """Basic functions for a client of bbc_core"""
     def __init__(self, host='127.0.0.1', port=DEFAULT_CORE_PORT, multiq=True,
-                 id_length=DEFAULT_ID_LEN, callback=None, logger=None):
+                 id_length=DEFAULT_ID_LEN, callback=None, timeout=5, logger=None):
         if logger is not None:
             self.logger = logger
         else:
@@ -87,6 +87,7 @@ class BBcAppClient:
             self.callback = Callback(logger=self.logger)
         self.callback.set_client(self)
         self.use_query_id_based_message_wait = multiq
+        self.timeout = timeout
         self.user_id = None
         self.domain_id = None
         self.query_id = (0).to_bytes(2, 'little')
@@ -193,6 +194,10 @@ class BBcAppClient:
         if config is not None:
             admin_info[KeyType.bbc_configuration] = config
         self.include_admin_info(dat, admin_info, None)
+
+        if self.use_query_id_based_message_wait:
+            qid = self._send_msg(dat)
+            return self.callback.sync_by_queryid(qid, timeout=self.timeout)
         return self._send_msg(dat)
 
     def domain_close(self, domain_id=None, src_user_id=None):
@@ -214,6 +219,10 @@ class BBcAppClient:
             KeyType.random: bbclib.get_random_value(32)
         }
         self.include_admin_info(dat, admin_info, None)
+
+        if self.use_query_id_based_message_wait:
+            qid = self._send_msg(dat)
+            return self.callback.sync_by_queryid(qid, timeout=self.timeout)
         return self._send_msg(dat)
 
     def get_node_id(self, domain_id=None, src_user_id=None):
@@ -226,6 +235,10 @@ class BBcAppClient:
             bytes: query_id
         """
         dat = self._make_message_structure(MsgType.REQUEST_GET_NODEID, domain_id=domain_id, src_user_id=src_user_id)
+
+        if self.use_query_id_based_message_wait:
+            qid = self._send_msg(dat)
+            return self.callback.sync_by_queryid(qid, timeout=self.timeout)
         return self._send_msg(dat)
 
     def get_bbc_config(self, domain_id=None, src_user_id=None):
@@ -244,6 +257,10 @@ class BBcAppClient:
             KeyType.random: bbclib.get_random_value(32)
         }
         self.include_admin_info(dat, admin_info, None)
+
+        if self.use_query_id_based_message_wait:
+            qid = self._send_msg(dat)
+            return self.callback.sync_by_queryid(qid, timeout=self.timeout)
         return self._send_msg(dat)
 
     def get_domain_list(self, domain_id=None, src_user_id=None):
@@ -260,6 +277,10 @@ class BBcAppClient:
             KeyType.random: bbclib.get_random_value(32)
         }
         self.include_admin_info(dat, admin_info, None)
+
+        if self.use_query_id_based_message_wait:
+            qid = self._send_msg(dat)
+            return self.callback.sync_by_queryid(qid, timeout=self.timeout)
         return self._send_msg(dat)
 
     def get_user_list(self, domain_id=None, src_user_id=None):
@@ -276,6 +297,10 @@ class BBcAppClient:
             KeyType.random: bbclib.get_random_value(32)
         }
         self.include_admin_info(dat, admin_info, None)
+
+        if self.use_query_id_based_message_wait:
+            qid = self._send_msg(dat)
+            return self.callback.sync_by_queryid(qid, timeout=self.timeout)
         return self._send_msg(dat)
 
     def get_notification_list(self, domain_id=None, src_user_id=None):
@@ -292,6 +317,10 @@ class BBcAppClient:
             KeyType.random: bbclib.get_random_value(32)
         }
         self.include_admin_info(dat, admin_info, None)
+
+        if self.use_query_id_based_message_wait:
+            qid = self._send_msg(dat)
+            return self.callback.sync_by_queryid(qid, timeout=self.timeout)
         return self._send_msg(dat)
 
     def register_to_core(self, on_multiple_nodes=False, domain_id=None, src_user_id=None):
@@ -453,6 +482,10 @@ class BBcAppClient:
             tx_obj.digest()
         dat = self._make_message_structure(MsgType.REQUEST_INSERT, domain_id=domain_id, src_user_id=src_user_id)
         dat[KeyType.transaction_data] = tx_obj.serialize()
+
+        if self.use_query_id_based_message_wait:
+            qid = self._send_msg(dat)
+            return self.callback.sync_by_queryid(qid, timeout=self.timeout)
         return self._send_msg(dat)
 
     def search_transaction_with_condition(self, asset_group_id=None, asset_id=None, user_id=None, direction=0, count=1,
@@ -481,6 +514,10 @@ class BBcAppClient:
             dat[KeyType.user_id] = user_id[:self.id_length]
         dat[KeyType.direction] = direction
         dat[KeyType.count] = count
+
+        if self.use_query_id_based_message_wait:
+            qid = self._send_msg(dat)
+            return self.callback.sync_by_queryid(qid, timeout=self.timeout)
         return self._send_msg(dat)
 
     def search_transaction(self, transaction_id, domain_id=None, src_user_id=None):
@@ -495,6 +532,10 @@ class BBcAppClient:
         """
         dat = self._make_message_structure(MsgType.REQUEST_SEARCH_TRANSACTION, domain_id=domain_id, src_user_id=src_user_id)
         dat[KeyType.transaction_id] = transaction_id[:self.id_length]
+
+        if self.use_query_id_based_message_wait:
+            qid = self._send_msg(dat)
+            return self.callback.sync_by_queryid(qid, timeout=self.timeout)
         return self._send_msg(dat)
 
     def count_transactions(self, asset_group_id=None, asset_id=None, user_id=None, domain_id=None, src_user_id=None):
@@ -518,6 +559,10 @@ class BBcAppClient:
             dat[KeyType.asset_id] = asset_id
         if user_id is not None:
             dat[KeyType.user_id] = user_id
+
+        if self.use_query_id_based_message_wait:
+            qid = self._send_msg(dat)
+            return self.callback.sync_by_queryid(qid, timeout=self.timeout)
         return self._send_msg(dat)
 
     def traverse_transactions(self, transaction_id, asset_group_id=None, user_id=None, direction=1, hop_count=3,
@@ -546,6 +591,10 @@ class BBcAppClient:
             dat[KeyType.user_id] = user_id[:self.id_length]
         dat[KeyType.direction] = direction
         dat[KeyType.hop_count] = hop_count
+
+        if self.use_query_id_based_message_wait:
+            qid = self._send_msg(dat)
+            return self.callback.sync_by_queryid(qid, timeout=self.timeout)
         return self._send_msg(dat)
 
     def get_stats(self, domain_id=None, src_user_id=None):
@@ -562,6 +611,10 @@ class BBcAppClient:
             KeyType.random: bbclib.get_random_value(32)
         }
         self.include_admin_info(dat, admin_info, None)
+
+        if self.use_query_id_based_message_wait:
+            qid = self._send_msg(dat)
+            return self.callback.sync_by_queryid(qid, timeout=self.timeout)
         return self._send_msg(dat)
 
     def get_stored_messages(self, user_id=None, async=False, domain_id=None, src_user_id=None):
@@ -584,6 +637,10 @@ class BBcAppClient:
         dat = self._make_message_structure(MsgType.REQUEST_GET_STORED_MESSAGES, domain_id=domain_id, src_user_id=src_user_id)
         if async:
             dat[KeyType.request_async] = True
+
+        if self.use_query_id_based_message_wait:
+            qid = self._send_msg(dat)
+            return self.callback.sync_by_queryid(qid, timeout=self.timeout)
         return self._send_msg(dat)
 
     def send_message(self, msg, dst_user_id, is_anycast=False, domain_id=None, src_user_id=None):

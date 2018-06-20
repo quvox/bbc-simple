@@ -14,6 +14,8 @@ from testutils import prepare, start_core_thread, get_core_client, make_client
 LOGLEVEL = 'debug'
 LOGLEVEL = 'info'
 
+CURVE_TYPE = bbclib.KeyType.ECDSA_SECP256k1
+
 core_num = 3
 client_num = 3
 cores = None
@@ -26,7 +28,7 @@ user_id1 = bbclib.get_new_id("destination_id_test1")[:bbclib.DEFAULT_ID_LEN]
 txid1 = bbclib.get_new_id("dummy_txid_1")[:bbclib.DEFAULT_ID_LEN]
 
 result_queue = queue.Queue()
-keypair = bbclib.KeyPair()
+keypair = bbclib.KeyPair(curvetype=CURVE_TYPE)
 keypair.generate()
 
 
@@ -151,7 +153,7 @@ class TestBBcCore(object):
         wit = bbclib.BBcWitness()
         transaction.add(relation=rtn, witness=wit)
         wit.add_witness(user_id1)
-        sig = transaction.sign(key_type=bbclib.KeyType.ECDSA_SECP256k1,
+        sig = transaction.sign(key_type=CURVE_TYPE,
                                private_key=keypair.private_key, public_key=keypair.public_key)
         transaction.add_signature(user_id=user_id1, signature=sig)
         transaction.digest()
