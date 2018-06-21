@@ -87,8 +87,9 @@ def insert_transactions(app, txobjs):
 
 
 def parser():
-    usage = 'python {} [--coreport <number>] [-l <number>] [-c <number>] [--help]'.format(__file__)
+    usage = 'python {} [-a <string>] [--coreport <number>] [-l <number>] [-c <number>] [--help]'.format(__file__)
     argparser = ArgumentParser(usage=usage)
+    argparser.add_argument('-a', '--address', type=str, default='localhost', help='bbc_core address')
     argparser.add_argument('--port', type=int, default=9000, help='bbc_core port')
     argparser.add_argument('-l', '--loop', type=int, default=1000, help='loop count')
     argparser.add_argument('-c', '--clients', type=int, default=3, help='loop count')
@@ -104,7 +105,8 @@ if __name__ == "__main__":
         keypairs.append(bbclib.KeyPair())
         keypairs[i].generate()
 
-    app = bbc_app.BBcAppClient(port=parsed_args.port, multiq=False, id_length=bbclib.DEFAULT_ID_LEN)
+    app = bbc_app.BBcAppClient(host=parsed_args.address, port=parsed_args.port, multiq=False, id_length=bbclib.DEFAULT_ID_LEN)
+
     app.set_user_id(user_ids[0])
     app.register_to_core()
     app.set_domain_id(domain_id)

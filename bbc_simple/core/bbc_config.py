@@ -28,6 +28,7 @@ current_config = {
     'redis': {
         'host': "localhost",
         'port': 6379,
+        #'password': "",
     },
     'db': {
         "db_type": "mysql",

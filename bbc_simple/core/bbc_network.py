@@ -64,7 +64,10 @@ class BBcNetwork:
         self.redis_pubsub = None
         self.pubsub = None
         conf = self.config.get_config()['redis']
-        pool = redis.ConnectionPool(host=conf['host'], port=conf['port'], db=0)
+        if 'password' in conf:
+            pool = redis.ConnectionPool(host=conf['host'], port=conf['port'], password=conf['password'], db=0)
+        else:
+            pool = redis.ConnectionPool(host=conf['host'], port=conf['port'], db=0)
         th = threading.Thread(target=self._redis_loop, args=(pool,))
         th.setDaemon(True)
         th.start()
