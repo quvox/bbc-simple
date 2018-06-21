@@ -20,7 +20,7 @@ DEFAULT_CORE_PORT = 9000
 
 TIMEOUT_TIMER = 3
 
-current_config = {
+plain_config = {
     'workingdir': DEFAULT_WORKING_DIR,
     'client': {
         'port': DEFAULT_CORE_PORT,
@@ -28,6 +28,7 @@ current_config = {
     'redis': {
         'host': "localhost",
         'port': 6379,
+        'ssl': False,
         #'password': "",
     },
     'db': {
@@ -36,11 +37,24 @@ current_config = {
         "db_port": 3306,
         "db_user": "user",
         "db_pass": "pass",
+        "db_rootname": "root",
         "db_rootpass": "password",
+        "ssl": False,
     },
     'domains': {
     },
 }
+
+
+def load_config(filepath):
+    config = dict()
+    with open(filepath, "r") as f:
+        try:
+            config = json.load(f)
+        except:
+            print("config file must be in JSON format")
+            os._exit(1)
+    return config
 
 
 def update_deep(d, u):
@@ -59,8 +73,10 @@ def update_deep(d, u):
 
 class BBcConfig:
     """System configuration"""
-    def __init__(self, directory=None, file=None):
-        self.config = copy.deepcopy(current_config)
+    def __init__(self, directory=None, file=None, default_confpath=None):
+        self.config = copy.deepcopy(plain_config)
+        if default_confpath is not None and os.path.exists(default_confpath):
+            self.config.update(load_config(default_confpath))
         if directory is not None:
             self.working_dir = directory
             self.config['workingdir'] = self.working_dir
@@ -80,14 +96,7 @@ class BBcConfig:
 
     def read_config(self):
         """Read config file"""
-        config = dict()
-        with open(self.config_file, "r") as f:
-            try:
-                config = json.load(f)
-            except:
-                print("config file must be in JSON format")
-                os._exit(1)
-        return config
+        return load_config(self.config_file)
 
     def update_config(self):
         """Write config to file (config.json)"""
