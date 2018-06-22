@@ -10,7 +10,8 @@
         "db_port": 3306,
         "db_user": "user",
         "db_pass": "pass",
-        "db_rootuser": "rrrr"
-        "db_rootpass": "ord"
+        "db_rootuser": "rrrr",
+        "db_rootpass": "ord",
+        "engine": "MyISAM"
     }
 }

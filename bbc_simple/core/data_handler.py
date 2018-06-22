@@ -54,6 +54,7 @@ class DataHandler:
             db_pass = dbconf.get("db_pass", "pass")
             db_rootuser = dbconf.get("db_rootuser", "root")
             db_rootpass = dbconf.get("db_rootpass", "password")
+            table_engine = dbconf.get("engine", "MyISAM")
         else:
             db_name = default_config.get("db_name", self.domain_id_str)
             db_addr = default_config.get("db_addr", "127.0.0.1")
@@ -62,8 +63,10 @@ class DataHandler:
             db_pass = default_config.get("db_pass", "pass")
             db_rootuser = default_config.get("db_rootuser", "root")
             db_rootpass = default_config.get("db_rootpass", "password")
+            table_engine = default_config.get("engine", "MyISAM")
 
-        self.db_adaptor = MysqlAdaptor(self, db_name=db_name, server_info=(db_addr, db_port, db_user, db_pass))
+        self.db_adaptor = MysqlAdaptor(self, db_name=db_name, server_info=(db_addr, db_port, db_user, db_pass),
+                                       engine=table_engine)
 
         self.db_adaptor.open_db(db_rootuser, db_rootpass)
         self.db_adaptor.create_table('transaction_table', transaction_tbl_definition, primary_key=0, indices=[0])
@@ -339,7 +342,7 @@ class DbAdaptor:
         self.db_name = "dom"+db_name
         self.placeholder = ""
 
-    def open_db(self, rootpass):
+    def open_db(self, rootuser, rootpass):
         """Open the DB"""
         pass
 
@@ -354,13 +357,14 @@ class DbAdaptor:
 
 class MysqlAdaptor(DbAdaptor):
     """DB adaptor for MySQL"""
-    def __init__(self, handler=None, db_name=None, server_info=None):
+    def __init__(self, handler=None, db_name=None, server_info=None, engine="MyISAM"):
         super(MysqlAdaptor, self).__init__(handler, db_name)
         self.placeholder = "%s"
         self.db_addr = server_info[0]
         self.db_port = server_info[1]
         self.db_user = server_info[2]
         self.db_pass = server_info[3]
+        self.table_engine = engine
 
     def open_db(self, rootuser, rootpass):
         """Open the DB"""
@@ -418,7 +422,7 @@ class MysqlAdaptor(DbAdaptor):
             sql += ", PRIMARY KEY (%s(32))" % tbl_definition[primary_key][0]
         else:
             sql += ", PRIMARY KEY (%s)" % tbl_definition[primary_key][0]
-        sql += ") CHARSET=utf8 ENGINE=MyISAM;"
+        sql += ") CHARSET=utf8 ENGINE=%s;" % self.table_engine
         self.handler.exec_sql(sql=sql, commit=True)
         for idx in indices:
             if tbl_definition[idx][1] in ["BLOB", "TEXT"]:
