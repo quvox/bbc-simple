@@ -75,8 +75,6 @@ class BBcConfig:
     """System configuration"""
     def __init__(self, directory=None, file=None, default_confpath=None):
         self.config = copy.deepcopy(plain_config)
-        if default_confpath is not None and os.path.exists(default_confpath):
-            self.config.update(load_config(default_confpath))
         if directory is not None:
             self.working_dir = directory
             self.config['workingdir'] = self.working_dir
@@ -92,6 +90,9 @@ class BBcConfig:
 
         if os.path.isfile(self.config_file):
             update_deep(self.config, self.read_config())
+
+        if default_confpath is not None and os.path.exists(default_confpath):
+            self.config.update(load_config(default_confpath))
         self.update_config()
 
     def read_config(self):

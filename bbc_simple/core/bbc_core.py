@@ -21,6 +21,7 @@ import os
 import signal
 import logging
 import binascii
+import json
 import traceback
 import copy
 from argparse import ArgumentParser
@@ -87,8 +88,8 @@ def _create_search_result(txobj_dict):
 class BBcCoreService:
     """Base service object of BBc-1"""
     def __init__(self, core_port=None, workingdir=".bbc1", configfile=None, ipv6=False,
-                 server_start=True, default_conffile=None, logconf=""):
-        if logconf != "":
+                 server_start=True, default_conffile=None, logconf=None):
+        if logconf is not None:
             initialize_logger(logconf)
         self.logger = logging.getLogger("bbc_core")
         self.stats = bbc_stats.BBcStats()
@@ -427,9 +428,12 @@ class BBcCoreService:
             if not self._param_check([KeyType.domain_id], dat):
                 self.logger.debug("REQUEST_SETUP_DOMAIN: bad format")
                 return False, None
+            conf = None
+            if KeyType.bbc_configuration in dat:
+                conf = json.loads(dat[KeyType.bbc_configuration])
             retmsg = _make_message_structure(None, MsgType.RESPONSE_SETUP_DOMAIN,
                                              dat[KeyType.source_user_id], dat[KeyType.query_id])
-            retmsg[KeyType.result] = self.networking.create_domain(domain_id=domain_id)
+            retmsg[KeyType.result] = self.networking.create_domain(domain_id=domain_id, config=conf)
             if not retmsg[KeyType.result]:
                 retmsg[KeyType.reason] = "Already exists"
             retmsg[KeyType.domain_id] = domain_id
