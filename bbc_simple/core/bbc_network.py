@@ -53,7 +53,6 @@ def is_less_than(val_a, val_b):
 
 class BBcNetwork:
     """Socket and thread management for infrastructure layers"""
-    NOTIFY_LEAVE = to_2byte(0)
 
     def __init__(self, config, core=None):
         self.core = core
@@ -64,14 +63,18 @@ class BBcNetwork:
         self.redis_pubsub = None
         self.pubsub = None
         conf = self.config.get_config()['redis']
-        pool = redis.ConnectionPool(host=conf['host'], port=conf['port'], db=0)
+        if 'password' in conf:
+            pool = redis.ConnectionPool(host=conf['host'], port=conf['port'], password=conf['password'], db=0)
+        else:
+            pool = redis.ConnectionPool(host=conf['host'], port=conf['port'], db=0)
         th = threading.Thread(target=self._redis_loop, args=(pool,))
         th.setDaemon(True)
         th.start()
-        self.redis_msg = redis.StrictRedis(connection_pool=pool, db=1)
+        self.redis_msg = redis.StrictRedis(connection_pool=pool, ssl=conf.get('ssl', False), db=1)
 
     def _redis_loop(self, pool):
-        self.redis_pubsub = redis.StrictRedis(connection_pool=pool)
+        conf = self.config.get_config()['redis']
+        self.redis_pubsub = redis.StrictRedis(connection_pool=pool, ssl=conf.get('ssl', False))
         pubsub = self.redis_pubsub.pubsub()
         pubsub.psubscribe(["*"])
         for msg in pubsub.listen():

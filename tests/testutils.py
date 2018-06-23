@@ -56,8 +56,11 @@ def start_core(index, core_port, remove_dir=True):
     cores[index]._start_server(port=core_port)
 
 
-def domain_setup_utility(core_port_increment, dom_id):
-    cl = bbc_app.BBcAppClient(port=DEFAULT_CORE_PORT + core_port_increment, multiq=False)
+def domain_setup_utility(core_port_increment, dom_id, host=None):
+    if host is None:
+        cl = bbc_app.BBcAppClient(port=DEFAULT_CORE_PORT + core_port_increment, multiq=False)
+    else:
+        cl = bbc_app.BBcAppClient(host=host, port=DEFAULT_CORE_PORT + core_port_increment, multiq=False)
     working_dir = ".bbc1-%i/" % (DEFAULT_CORE_PORT + core_port_increment)
     cl.domain_setup(dom_id)
     global common_domain_id
@@ -82,6 +85,23 @@ def make_client(index, core_port_increment, callback=None, connect_to_core=True,
     if callback is not None:
         clients[index]['app'].set_callback(callback)
     working_dir = ".bbc1-%i/" % (DEFAULT_CORE_PORT + core_port_increment)
+    time.sleep(0.1)
+    print("[%i] user_id = %s" % (index, binascii.b2a_hex(clients[index]['user_id'])))
+
+
+def make_client_direct(index, host, port, callback=None, domain_id=None, id_length=bbclib.DEFAULT_ID_LEN):
+    keypair = bbclib.KeyPair()
+    keypair.generate()
+    clients[index]['user_id'] = bbclib.get_new_id("user_%i" % index)[:id_length]
+    clients[index]['keypair'] = keypair
+    clients[index]['app'] = bbc_app.BBcAppClient(host=host, port=port, multiq=False, id_length=id_length)
+    if domain_id is None:
+        global common_domain_id
+        domain_id = common_domain_id
+    clients[index]['app'].set_user_id(clients[index]['user_id'])
+    clients[index]['app'].set_domain_id(domain_id)
+    if callback is not None:
+        clients[index]['app'].set_callback(callback)
     time.sleep(0.1)
     print("[%i] user_id = %s" % (index, binascii.b2a_hex(clients[index]['user_id'])))
 

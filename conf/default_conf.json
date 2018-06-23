@@ -1,0 +1,17 @@
+{
+    "redis": {
+        "host": "localhostX",
+        "port": 6379,
+        "password": "Z"
+    },
+    "db": {
+        "db_type": "mysql",
+        "db_addr": "aaa",
+        "db_port": 3306,
+        "db_user": "user",
+        "db_pass": "pass",
+        "db_rootuser": "rrrr",
+        "db_rootpass": "ord",
+        "engine": "MyISAM"
+    }
+}

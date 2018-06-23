@@ -21,6 +21,7 @@ import os
 import signal
 import logging
 import binascii
+import json
 import traceback
 import copy
 from argparse import ArgumentParser
@@ -87,12 +88,12 @@ def _create_search_result(txobj_dict):
 class BBcCoreService:
     """Base service object of BBc-1"""
     def __init__(self, core_port=None, workingdir=".bbc1", configfile=None, ipv6=False,
-                 server_start=True, logconf=""):
-        if logconf != "":
+                 server_start=True, default_conffile=None, logconf=None):
+        if logconf is not None:
             initialize_logger(logconf)
         self.logger = logging.getLogger("bbc_core")
         self.stats = bbc_stats.BBcStats()
-        self.config = BBcConfig(workingdir, configfile)
+        self.config = BBcConfig(workingdir, configfile, default_conffile)
         conf = self.config.get_config()
         self.ipv6 = ipv6
         self.logger.debug("config = %s" % conf)
@@ -427,9 +428,12 @@ class BBcCoreService:
             if not self._param_check([KeyType.domain_id], dat):
                 self.logger.debug("REQUEST_SETUP_DOMAIN: bad format")
                 return False, None
+            conf = None
+            if KeyType.bbc_configuration in dat:
+                conf = json.loads(dat[KeyType.bbc_configuration])
             retmsg = _make_message_structure(None, MsgType.RESPONSE_SETUP_DOMAIN,
                                              dat[KeyType.source_user_id], dat[KeyType.query_id])
-            retmsg[KeyType.result] = self.networking.create_domain(domain_id=domain_id)
+            retmsg[KeyType.result] = self.networking.create_domain(domain_id=domain_id, config=conf)
             if not retmsg[KeyType.result]:
                 retmsg[KeyType.reason] = "Already exists"
             retmsg[KeyType.domain_id] = domain_id
@@ -735,6 +739,8 @@ def parser():
     argparser.add_argument('-cp', '--coreport', type=int, default=DEFAULT_CORE_PORT, help='waiting TCP port')
     argparser.add_argument('-w', '--workingdir', type=str, default=".bbc1", help='working directory name')
     argparser.add_argument('-c', '--config', type=str, default=None, help='config file name')
+    argparser.add_argument('--default_config', type=str, default=None, help='default config file')
+    argparser.add_argument('--log_config', type=str, default=None, help='log conf file')
     argparser.add_argument('-6', '--ipv6', action='store_true', default=False, help='Use IPv6 for waiting TCP connection')
     argparser.add_argument('-d', '--daemon', action='store_true', help='run in background')
     argparser.add_argument('-k', '--kill', action='store_true', help='kill the daemon')
@@ -757,5 +763,6 @@ if __name__ == '__main__':
         workingdir=argresult.workingdir,
         configfile=argresult.config,
         ipv6=argresult.ipv6,
-        #logconf="../logger/logconf.yml"
+        default_conffile=argresult.default_config,
+        logconf=argresult.log_config,# "../logger/logconf.yml"
     )
