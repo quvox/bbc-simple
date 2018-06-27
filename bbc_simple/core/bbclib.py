@@ -684,6 +684,8 @@ class BBcTransaction:
                 self.events.extend(event)
             else:
                 self.events.append(event)
+            for ast in self.events:
+                ast.format_type = self.format_type
         if reference is not None:
             if isinstance(reference, list):
                 self.references.extend(reference)
@@ -694,6 +696,12 @@ class BBcTransaction:
                 self.relations.extend(relation)
             else:
                 self.relations.append(relation)
+            for rtn in self.relations:
+                rtn.format_type = self.format_type
+                for ptr in rtn.pointers:
+                    ptr.format_type = self.format_type
+            for ast in self.events:
+                ast.format_type = self.format_type
         if witness is not None:
             witness.transaction = self
             self.witness = witness
@@ -1473,9 +1481,9 @@ class BBcRelation:
             data = obj
 
         self.asset_group_id = data.get('asset_group_id', None)
-        for ptr_bson in data.get('pointers', []):
+        for ptrdat in data.get('pointers', []):
             ptr = BBcPointer(format_type=self.format_type, id_length=self.id_length)
-            ptr.deserialize(ptr_bson)
+            ptr.deserialize(ptrdat)
             self.pointers.append(ptr)
         asset = data.get('asset', None)
         if asset is None:

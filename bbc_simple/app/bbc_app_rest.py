@@ -56,7 +56,7 @@ def get_id_binary(jsondata, keystr):
 def get_encoded_bson_txobj(txdat):
     txobj = bbclib.BBcTransaction(deserialize=txdat)
     txobj.set_format_type(format_type=bbclib.BBcFormat.FORMAT_BSON)
-    return base64.b64encode(txobj.serialize_bson(no_header=True)).decode()
+    return base64.b64encode(txobj.serialize_obj(no_header=True)).decode()
 
 
 def crossdomain(origin=None, methods=None, headers=None,
@@ -182,7 +182,7 @@ async def insert_transaction(request):
         return json_response({'error': 'invalid request'}, 500)
     txobj = bbclib.BBcTransaction(format_type=bbclib.BBcFormat.FORMAT_BSON)
     txdat = base64.b64decode(json_data.get('transaction_bson'))
-    txobj.deserialize_bson(txdat)
+    txobj.deserialize_obj(txdat)
     retmsg = bbcapp.insert_transaction(txobj)
     if retmsg is None:
         return json_response({'error': 'No response'}, 400)
