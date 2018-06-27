@@ -12,3 +12,9 @@ cd bbc_simple/core/libbbcsig
 make clean
 make
 
+if [ ! -d venv ]; then
+    python3 -mvenv venv
+fi
+
+source venv/bin/activate
+pip install -r requirements.txt
