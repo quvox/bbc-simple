@@ -622,7 +622,7 @@ class BBcSignature:
 
 class BBcTransaction:
     """Transaction object"""
-    def __init__(self, version=0, deserialize=None,
+    def __init__(self, version=1, deserialize=None,
                  format_type=BBcFormat.FORMAT_BINARY, id_length=DEFAULT_ID_LEN):
         self.format_type = format_type
         self.id_length = id_length
@@ -647,7 +647,8 @@ class BBcTransaction:
         ret += "* transaction_id: %s\n" % str_binary(self.transaction_id)
         ret += "version: %d\n" % self.version
         ret += "timestamp: %d\n" % self.timestamp
-        ret += "id_length: %d\n" % self.id_length
+        if self.version != 0:
+            ret += "id_length: %d\n" % self.id_length
         ret += "Event[]: %d\n" % len(self.events)
         for i, evt in enumerate(self.events):
             ret += " [%d]\n" % i
@@ -756,7 +757,8 @@ class BBcTransaction:
             return self.serialize_obj(for_id)
         dat = bytearray(to_4byte(self.version))
         dat.extend(to_8byte(self.timestamp))
-        dat.extend(to_2byte(self.id_length))
+        if self.version != 0:
+            dat.extend(to_2byte(self.id_length))
         dat.extend(to_2byte(len(self.events)))
         for i in range(len(self.events)):
             evt = self.events[i].serialize()
@@ -822,7 +824,8 @@ class BBcTransaction:
         try:
             ptr, self.version = get_n_byte_int(ptr, 4, data)
             ptr, self.timestamp = get_n_byte_int(ptr, 8, data)
-            ptr, self.id_length = get_n_byte_int(ptr, 2, data)
+            if self.version != 0:
+                ptr, self.id_length = get_n_byte_int(ptr, 2, data)
             ptr, evt_num = get_n_byte_int(ptr, 2, data)
             self.events = []
             for i in range(evt_num):
