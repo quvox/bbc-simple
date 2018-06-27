@@ -1,0 +1,12 @@
+include MANIFEST.in
+include README.en.md
+include README.md
+include prepare.sh
+include prepare_pip.sh
+include prepare_pip.py
+include requirements.txt
+recursive-include conf *
+recursive-include misc *
+recursive-include utils *
+global-exclude __pycache__
+global-exclude *.py[co]
