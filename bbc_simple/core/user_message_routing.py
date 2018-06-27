@@ -179,11 +179,14 @@ class UserMessageRouting:
     def _process_msg_queue(self, socks, dst_info):
         cnt = 3
         while cnt > 0 and self.networking.redis_msg.llen(dst_info) > 0:
-            dat = self.networking.redis_msg.lpop(dst_info)
+            cnt -= 1
+            try:
+                dat = self.networking.redis_msg.lpop(dst_info)
+            except:
+                continue
             self.stats.update_stats_increment("user_message", "send_to_user", 1)
             self._send(socks, dat, no_make=True)
             self.networking.redis_msg.expire(dst_info, bbc_network.MSG_EXPIRE_SECONDS)
-            cnt -= 1
 
     def _send_notification(self, transaction_id, dat):
         id_num = dat[0]
