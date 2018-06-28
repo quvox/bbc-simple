@@ -23,7 +23,7 @@ all:
 libbbcsig.so:	libbbcsig.o
 	gcc -shared -o $@ $(LFLAGS1) $(LIBS) $(LFLAGS2) $<
 	install -m 0644 $@ ../
-	install -m 0644 $@ ../../bbc1/core/
+	install -m 0644 $@ ../../bbc_simple/core/
 
 openssl:
 	cd $(OPENSSL_DIR) && ./config && make

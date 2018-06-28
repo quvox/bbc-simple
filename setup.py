@@ -57,7 +57,7 @@ bbc_simple_classifiers = [
 
 setup(
     name='bbc_simple',
-    version='0.0.1.beta',
+    version='0.0.1.beta1',
     description='Simplified Beyond Block-chain One',
     long_description=readme,
     url='https://github.com/quvox/bbc-simple',

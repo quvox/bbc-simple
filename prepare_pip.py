@@ -19,5 +19,5 @@ shutil.copy('libs/libbbcsig/libbbcsig.so', dst_path)
 logconf_target_dir = os.path.join(install_pkg_dir, 'logger')
 os.makedirs(logconf_target_dir, exist_ok=True)
 logconf_dst_path = os.path.join(logconf_target_dir, 'logconf.yml')
-shutil.copy('conf/logconf.yml', logconf_dst_path)
+shutil.copy('conf/log_conf.yml', logconf_dst_path)
 
