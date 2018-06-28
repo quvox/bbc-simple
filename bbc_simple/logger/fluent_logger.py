@@ -9,12 +9,13 @@ import sys
 import faulthandler
 
 
-def initialize_logger(conf_filename):
+def initialize_logger(conf_filename=None):
     """read config file"""
-    with open(conf_filename) as f:
-        conf = yaml.load(f)
-    """setup globally"""
-    config.dictConfig(conf["logging"])
+    if conf_filename is not None and os.path.exists(conf_filename):
+        with open(conf_filename) as f:
+            conf = yaml.load(f)
+        """setup globally"""
+        config.dictConfig(conf["logging"])
 
 
 def setup_and_send_crash_log(crash_logfile='/tmp/crash.log'):

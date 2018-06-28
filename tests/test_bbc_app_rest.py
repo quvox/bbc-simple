@@ -105,7 +105,9 @@ class TestBBcAppClient(object):
 
     def test_00_setup(self):
         print("\n-----", sys._getframe().f_code.co_name, "-----")
-        shutil.rmtree(".bbc1-9000")
+        import os
+        if os.path.exists(".bbc1-9000"):
+            shutil.rmtree(".bbc1-9000")
         prepare(core_num=core_num, client_num=client_num)
 
         for i in range(core_num):
@@ -130,7 +132,7 @@ class TestBBcAppClient(object):
     def test_02_insert_transaction(self):
         print("\n-----", sys._getframe().f_code.co_name, "-----")
         tx = make_transaction()
-        bsonobj = tx.serialize_bson(no_header=True)
+        bsonobj = tx.serialize_obj(no_header=True)
 
         parameter = {
             'source_user_id': user_id1.hex(),
@@ -161,7 +163,7 @@ class TestBBcAppClient(object):
         global tx1, tx2
         tx1, tx2 = make_many_transactions(10)
         for tx in tx1+tx2:
-            bsonobj = tx.serialize_bson(no_header=True)
+            bsonobj = tx.serialize_obj(no_header=True)
 
             parameter = {
                 'source_user_id': user_id1.hex(),

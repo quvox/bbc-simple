@@ -341,41 +341,31 @@ def verify_using_cross_ref(domain_id, transaction_id, transaction_base_digest, c
         transaction_base_digest (bytes): digest obtained from the outer domain
         cross_ref_data (bytes): serialized BBcCrossRef object
         sigdata (bytes): serialized signature
-        format_type (int): Data format defined in BBcFormat class
+        format_type (int): Data format type when calculating the digest (transaction_id)
     Returns:
         bool: True if valid
     """
-    if format_type in [BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_MSGPACK_COMPRESS_BZ2]:
-        cross_ref_data = bz2.decompress(cross_ref_data)
-    elif format_type in [BBcFormat.FORMAT_BSON_COMPRESS_ZLIB, BBcFormat.FORMAT_MSGPACK_COMPRESS_ZLIB]:
-        cross_ref_data = zlib.decompress(cross_ref_data)
-
-    if format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
-        cross_ref_data = bson.loads(cross_ref_data)
-        sigdata = bson.loads(sigdata)
-    if format_type in [BBcFormat.FORMAT_MSGPACK, BBcFormat.FORMAT_MSGPACK_COMPRESS_BZ2, BBcFormat.FORMAT_MSGPACK_COMPRESS_ZLIB]:
-        cross_ref_data = msgpack.loads(cross_ref_data)
-        sigdata = msgpack.loads(sigdata)
-    cross = BBcCrossRef(deserialize=cross_ref_data, format_type=format_type)
+    cross = BBcCrossRef(deserialize=cross_ref_data, format_type=BBcFormat.FORMAT_BINARY)
+    cross.format_type = format_type
     if cross.domain_id != domain_id or cross.transaction_id != transaction_id:
         return False
     if format_type in [BBcFormat.FORMAT_BSON, BBcFormat.FORMAT_BSON_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_ZLIB]:
         dat = bson.dumps({
             "tx_base": transaction_base_digest,
-            "cross_ref": cross_ref_data,
+            "cross_ref": cross.serialize(),
         })
     elif format_type in [BBcFormat.FORMAT_MSGPACK, BBcFormat.FORMAT_MSGPACK_COMPRESS_BZ2, BBcFormat.FORMAT_MSGPACK_COMPRESS_ZLIB]:
         dat = msgpack.dumps({
             "tx_base": transaction_base_digest,
-            "cross_ref": cross_ref_data,
+            "cross_ref": cross.serialize(),
         })
     else:
         dat = bytearray(transaction_base_digest)
         dat.extend(to_2byte(1))
         dat.extend(to_4byte(len(cross_ref_data)))
-        dat.extend(cross_ref_data)
+        dat.extend(cross.serialize())
     digest = hashlib.sha256(bytes(dat)).digest()
-    sig = BBcSignature(deserialize=sigdata, format_type=format_type)
+    sig = BBcSignature(deserialize=sigdata)
     return sig.verify(digest) == 1
 
 
@@ -580,7 +570,7 @@ class BBcSignature:
         """Deserialize bson/msgpack data into this object
 
         Args:
-            data (bytes): object data
+            obj (bytes): object data
         Returns:
             bool: True if successful
         """
@@ -685,8 +675,10 @@ class BBcTransaction:
                 self.events.extend(event)
             else:
                 self.events.append(event)
-            for ast in self.events:
-                ast.format_type = self.format_type
+            for evt in self.events:
+                evt.format_type = self.format_type
+                if evt.asset is not None:
+                    evt.asset.format_type = self.format_type
         if reference is not None:
             if isinstance(reference, list):
                 self.references.extend(reference)
@@ -701,8 +693,8 @@ class BBcTransaction:
                 rtn.format_type = self.format_type
                 for ptr in rtn.pointers:
                     ptr.format_type = self.format_type
-            for ast in self.events:
-                ast.format_type = self.format_type
+                if rtn.asset is not None:
+                    rtn.asset.format_type = self.format_type
         if witness is not None:
             witness.transaction = self
             self.witness = witness
@@ -1198,7 +1190,7 @@ class BBcEvent:
         """Deserialize bson/msgpack data into this object
 
         Args:
-            data (bytes): object data
+            obj (bytes): object data
         Returns:
             bool: True if successful
         """
@@ -1347,7 +1339,7 @@ class BBcReference:
         """Deserialize bson/msgpack data into this object
 
         Args:
-            data (bytes): object data
+            obj (bytes): object data
         Returns:
             bool: True if successful
         """
@@ -1572,7 +1564,7 @@ class BBcPointer:
         """Deserialize bson/msgpack data into this object
 
         Args:
-            data (bytes): object data
+            obj (bytes): object data
         Returns:
             bool: True if successful
         """
@@ -1675,7 +1667,7 @@ class BBcWitness:
         """Deserialize bson/msgpack data into this object
 
         Args:
-            data (bytes): object data
+            obj (bytes): object data
         Returns:
             bool: True if successful
         """
@@ -1881,7 +1873,7 @@ class BBcAsset:
         """Deserialize bson/msgpack data into this object
 
         Args:
-            data (bytes): object data
+            obj (bytes): object data
         Returns:
             bool: True if successful
         """
@@ -1957,7 +1949,7 @@ class BBcCrossRef:
         """Deserialize bson/msgpack data into this object
 
         Args:
-            data (bytes): object data
+            obj (bytes): object data
         Returns:
             bool: True if successful
         """

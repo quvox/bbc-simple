@@ -58,7 +58,7 @@ class TestBBcLib(object):
         print("Digest:", binascii.b2a_hex(digest))
         print("Serialized data:", dat)
         asset_tmp = BBcAsset(format_type=bbclib.BBcFormat.FORMAT_BSON)  # 中途半端にMSGPACKにするとハマるのでBSONを指定しておく
-        asset_tmp.deserialize_bson(dat)
+        asset_tmp.deserialize_obj(dat)
         print(asset_tmp)
         print("body_len:", asset_tmp.asset_body_size)
         if asset_tmp.asset_body_size > 0:
