@@ -58,7 +58,7 @@ bbc_simple_classifiers = [
 setup(
     name='bbc_simple',
     version='0.0.1.beta',
-    description='Simplified Beyond Blockchain One',
+    description='Simplified Beyond Block-chain One',
     long_description=readme,
     url='https://github.com/quvox/bbc-simple',
     author='Takeshi Kubo',
