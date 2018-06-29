@@ -86,7 +86,7 @@ class BBcAppClient:
         else:
             self.callback = Callback(logger=self.logger)
         self.callback.set_client(self)
-        self.use_query_id_based_message_wait = multiq
+        self.use_query_id_based_message_wait = True
         self.timeout = timeout
         self.user_id = None
         self.domain_id = None

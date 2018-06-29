@@ -10,7 +10,7 @@ import sys
 sys.path.extend(["../"])
 from bbc_simple.core import bbclib
 from bbc_simple.core.message_key_types import KeyType
-from bbc_simple.core import bbc_core, bbc_app
+from bbc_simple.core import bbc_core, bbc_app, bbc_app_sync
 from bbc_simple.core.bbc_config import DEFAULT_CORE_PORT
 
 cores = None
@@ -76,6 +76,27 @@ def make_client(index, core_port_increment, callback=None, connect_to_core=True,
     clients[index]['keypair'] = keypair
     clients[index]['app'] = bbc_app.BBcAppClient(port=DEFAULT_CORE_PORT + core_port_increment, multiq=False,
                                                  id_length=id_length)
+    if connect_to_core:
+        if domain_id is None:
+            global common_domain_id
+            domain_id = common_domain_id
+        clients[index]['app'].set_user_id(clients[index]['user_id'])
+        clients[index]['app'].set_domain_id(domain_id)
+    if callback is not None:
+        clients[index]['app'].set_callback(callback)
+    working_dir = ".bbc1-%i/" % (DEFAULT_CORE_PORT + core_port_increment)
+    time.sleep(0.1)
+    print("[%i] user_id = %s" % (index, binascii.b2a_hex(clients[index]['user_id'])))
+
+
+def make_client_sync(index, core_port_increment, callback=None, connect_to_core=True, domain_id=None,
+                     id_length=bbclib.DEFAULT_ID_LEN):
+    keypair = bbclib.KeyPair()
+    keypair.generate()
+    clients[index]['user_id'] = bbclib.get_new_id("user_%i" % index)[:id_length]
+    clients[index]['keypair'] = keypair
+    clients[index]['app'] = bbc_app_sync.BBcAppClient(port=DEFAULT_CORE_PORT + core_port_increment, multiq=True,
+                                                      id_length=id_length)
     if connect_to_core:
         if domain_id is None:
             global common_domain_id
