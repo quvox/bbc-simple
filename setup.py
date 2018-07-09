@@ -47,6 +47,7 @@ bbc_simple_packages = ['bbc_simple', 'bbc_simple.core', 'bbc_simple.app', 'bbc_s
 
 bbc_simple_commands = [
                        'bbc_simple/core/bbc_core.py',
+                       'bbc_simple/app/bbc_app_rest.py',
                        'utils/performance_tester.py']
 
 bbc_simple_classifiers = [
@@ -57,7 +58,7 @@ bbc_simple_classifiers = [
 
 setup(
     name='bbc_simple',
-    version='0.0.1.beta1',
+    version='0.0.1.beta2',
     description='Simplified Beyond Block-chain One',
     long_description=readme,
     url='https://github.com/quvox/bbc-simple',
