@@ -29,6 +29,7 @@ from aiohttp.http_exceptions import HttpBadRequest
 from aiohttp.web_exceptions import HTTPMethodNotAllowed
 from aiohttp.web import Request, Response
 from aiohttp.web_urldispatcher import UrlDispatcher
+import aiohttp_cors
 
 import textwrap
 import json
@@ -315,6 +316,19 @@ def start_server(host="127.0.0.1", cport=9000, wport=3000, log_init=True):
     # http.run(host='0.0.0.0', port=argresult.waitport, ssl_context=context)
     app = web.Application()
     app.router.add_routes(routes)
+
+    # Configure default CORS settings.
+    cors = aiohttp_cors.setup(app, defaults={
+        "*": aiohttp_cors.ResourceOptions(
+                allow_credentials=True,
+                expose_headers="*",
+                allow_headers="*",
+            )
+    })
+
+    # Configure CORS on all routes.
+    for route in list(app.router.routes()):
+        cors.add(route)
 
     web.run_app(app, port=wport)
 
