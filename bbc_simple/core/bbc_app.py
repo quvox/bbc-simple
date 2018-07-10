@@ -380,7 +380,7 @@ class BBcAppClient:
             if len(referred_transactions) > 0:
                 dat[KeyType.transactions] = referred_transactions
         elif destinations is not None:
-            dat[KeyType.destination_user_ids] = [dst[:self.id_length] for dst in destinations]
+            dat[KeyType.destination_user_ids] = destinations
         return self._send_msg(dat)
 
     def sendback_signature(self, dest_user_id=None, transaction_id=None, ref_index=-1, signature=None, query_id=None,
