@@ -48,7 +48,8 @@ def make_transaction():
     sig = txobj.sign(keypair=keypair1)
     txobj.add_signature(user_id=user_id1, signature=sig)
     global txid, asid
-    txid = txobj.digest()
+    txobj.digest()
+    txid = txobj.transaction_id
     asid = txobj.events[0].asset.asset_id
     return txobj
 
