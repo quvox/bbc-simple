@@ -935,12 +935,12 @@ class BBcTransaction:
                     "tx_base": self.transaction_base_digest,
                     "cross_ref": tx_crossref,
                 })
-        if self.version == 1:
+        if self.version <= 1:
             tx_base.update({"cross_ref": tx_crossref})
 
         if self.format_type in [BBcFormat.FORMAT_MSGPACK, BBcFormat.FORMAT_MSGPACK_COMPRESS_BZ2,
                                 BBcFormat.FORMAT_MSGPACK_COMPRESS_ZLIB]:
-            if self.version == 1:
+            if self.version <= 1:
                 dat = msgpack.dumps({
                     "transaction_base": tx_base,
                     "signatures": [sig.serialize() for sig in self.signatures],
@@ -952,7 +952,7 @@ class BBcTransaction:
                     "signatures": [sig.serialize() for sig in self.signatures],
                 })
         else:
-            if self.version == 1:
+            if self.version <= 1:
                 dat = bson.dumps({
                     "transaction_base": tx_base,
                     "signatures": [sig.serialize() for sig in self.signatures],
@@ -1016,7 +1016,7 @@ class BBcTransaction:
             self.witness = BBcWitness(format_type=self.format_type, id_length=self.id_length)
             self.witness.transaction = self
             self.witness.deserialize(wit)
-        if self.version == 1:
+        if self.version <= 1:
             cross_ref = tx_base.get("cross_ref", None)
         else:
             cross_ref = datobj["cross_ref"]
