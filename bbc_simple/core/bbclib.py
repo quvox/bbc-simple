@@ -1019,7 +1019,7 @@ class BBcTransaction:
         if self.version == 0:
             cross_ref = tx_base.get("cross_ref", None)
         else:
-            cross_ref = datobj["cross_ref"]
+            cross_ref = datobj.get("cross_ref", None)
         if cross_ref is None:
             self.cross_ref = None
         else:
