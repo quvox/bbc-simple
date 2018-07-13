@@ -612,7 +612,7 @@ class BBcSignature:
 
 class BBcTransaction:
     """Transaction object"""
-    def __init__(self, version=1, deserialize=None,
+    def __init__(self, version=2, deserialize=None,
                  format_type=BBcFormat.FORMAT_BINARY, id_length=DEFAULT_ID_LEN):
         self.format_type = format_type
         self.id_length = id_length
@@ -935,19 +935,34 @@ class BBcTransaction:
                     "tx_base": self.transaction_base_digest,
                     "cross_ref": tx_crossref,
                 })
-        tx_base.update({"cross_ref": tx_crossref})
+        if self.version == 1:
+            tx_base.update({"cross_ref": tx_crossref})
 
         if self.format_type in [BBcFormat.FORMAT_MSGPACK, BBcFormat.FORMAT_MSGPACK_COMPRESS_BZ2,
                                 BBcFormat.FORMAT_MSGPACK_COMPRESS_ZLIB]:
-            dat = msgpack.dumps({
-                "transaction_base": tx_base,
-                "signatures": [sig.serialize() for sig in self.signatures],
-            })
+            if self.version == 1:
+                dat = msgpack.dumps({
+                    "transaction_base": tx_base,
+                    "signatures": [sig.serialize() for sig in self.signatures],
+                })
+            else:
+                dat = msgpack.dumps({
+                    "transaction_base": tx_base,
+                    "cross_ref": tx_crossref,
+                    "signatures": [sig.serialize() for sig in self.signatures],
+                })
         else:
-            dat = bson.dumps({
-                "transaction_base": tx_base,
-                "signatures": [sig.serialize() for sig in self.signatures],
-            })
+            if self.version == 1:
+                dat = bson.dumps({
+                    "transaction_base": tx_base,
+                    "signatures": [sig.serialize() for sig in self.signatures],
+                })
+            else:
+                dat = bson.dumps({
+                    "transaction_base": tx_base,
+                    "cross_ref": tx_crossref,
+                    "signatures": [sig.serialize() for sig in self.signatures],
+                })
         if self.format_type in [BBcFormat.FORMAT_MSGPACK_COMPRESS_BZ2, BBcFormat.FORMAT_BSON_COMPRESS_BZ2]:
             dat = bz2.compress(dat, compresslevel=1)
         elif self.format_type in [BBcFormat.FORMAT_BSON_COMPRESS_ZLIB, BBcFormat.FORMAT_MSGPACK_COMPRESS_ZLIB]:
@@ -1001,7 +1016,10 @@ class BBcTransaction:
             self.witness = BBcWitness(format_type=self.format_type, id_length=self.id_length)
             self.witness.transaction = self
             self.witness.deserialize(wit)
-        cross_ref = tx_base.get("cross_ref", None)
+        if self.version == 1:
+            cross_ref = tx_base.get("cross_ref", None)
+        else:
+            cross_ref = datobj["cross_ref"]
         if cross_ref is None:
             self.cross_ref = None
         else:
