@@ -2,6 +2,7 @@
 import pytest
 
 import binascii
+import hashlib
 import sys
 sys.path.extend(["../"])
 from bbc_simple.core.bbclib import BBcTransaction, BBcEvent, BBcReference, BBcWitness, BBcRelation, BBcAsset, \
@@ -43,6 +44,22 @@ class TestBBcLib(object):
         global keypair1
         kp = KeyPair(pubkey=keypair1.public_key)
         assert kp.public_key
+
+        kp2 = KeyPair()
+        kp2.mk_keyobj_from_private_key_pem(keypair1.get_private_key_in_pem().decode())
+        assert len(kp.public_key) == 65
+
+        digest = hashlib.sha256(b"asdahb;ou;oboiahibnoabuebijapdfuajfkjiui:qrgo").digest()
+        digest2 = hashlib.sha256(b"asdah:qrgo").digest()
+        sig1 = keypair1.sign(digest)
+        sig2 = keypair2.sign(digest)
+        assert keypair1.verify(digest, sig1)
+        assert not keypair1.verify(digest2, sig1)
+        assert keypair2.verify(digest, sig2)
+        assert not keypair2.verify(digest2, sig2)
+
+        assert not keypair1.verify(digest, sig2)
+        assert not keypair2.verify(digest, sig1)
 
     def test_01_asset(self):
         print("\n-----", sys._getframe().f_code.co_name, "-----")
@@ -246,9 +263,17 @@ class TestBBcLib(object):
             print(bbclib.error_text)
             assert ret
 
-    def test_08_proof(self):
+    def test_08_proof_will_failed(self):
         print("\n-----", sys._getframe().f_code.co_name, "-----")
         transaction1.timestamp = transaction1.timestamp + 1
         digest = transaction1.digest()
+        ret = transaction1.signatures[0].verify(digest)
+        assert not ret
+
+    def test_09_proof_will_failed(self):
+        print("\n-----", sys._getframe().f_code.co_name, "-----")
+        transaction1.timestamp = transaction1.timestamp - 1
+        digest = transaction1.digest()
+        transaction1.signatures[0].add(pubkey=keypair2.public_key)
         ret = transaction1.signatures[0].verify(digest)
         assert not ret

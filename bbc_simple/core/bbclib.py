@@ -555,7 +555,7 @@ class BBcSignature:
     def get_dict(self):
         """Serialize this object"""
         if self.not_initialized:
-            return {'key_type': self.key_type}
+            return {'key_type': 0}
         pubkey_len_bit = len(self.pubkey) * 8
         sig_len_bit = len(self.signature) * 8
         return {
@@ -712,7 +712,7 @@ class BBcTransaction:
         """
         if user_id not in self.userid_sigidx_mapping:
             self.userid_sigidx_mapping[user_id] = len(self.userid_sigidx_mapping)
-            self.signatures.append(BBcSignature())
+            self.signatures.append(BBcSignature(format_type=self.format_type))
         return self.userid_sigidx_mapping[user_id]
 
     def add_signature(self, user_id=None, signature=None):
