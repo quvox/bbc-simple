@@ -122,6 +122,7 @@ class UserMessageRouting:
                 KeyType.domain_id: self.domain_id,
                 KeyType.destination_user_id: src_user_id,
                 KeyType.command: bbclib.MsgType.RESPONSE_GET_STORED_MESSAGES,
+                KeyType.query_id: query_id,
                 KeyType.bulk_messages: messages,
             }
             self._send(socks, msg)
